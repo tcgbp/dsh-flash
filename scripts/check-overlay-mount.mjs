@@ -1919,8 +1919,8 @@ console.log('\n=== 20. 默认 switches a handle-less skin as a PLUGIN, never thr
   const injectList = (manifest && manifest.dsh && manifest.dsh.client && manifest.dsh.client.inject) || []
   check('the client manifest declares the remotes package the skin switch needs',
     injectList.includes('@deepseek-ai/dsh-api-remotes'), JSON.stringify(injectList))
-  check('...while keeping the base-package load-order hint for workbench mode',
-    injectList.includes('dock-base'), JSON.stringify(injectList))
+  check('...and the core declares NO dock-base load-order hint — that hint belongs to the adapter',
+    !injectList.includes('dock-base'), JSON.stringify(injectList))
 
   // That package entry buys LOAD ORDER, not access. A typert namespace is a service
   // of its own — @deepseek-ai/dsh-api-gateway registers each one as
@@ -3010,15 +3010,15 @@ console.log('\n=== 25. the tab glyphs: sliders / blocks / doc, and the bolt stay
     'sliders entry=' + /^\s*sliders:\s*\[/m.test(code)
       + ' firstTrack=' + code.includes("'M2.5 4.2h11'"))
 
-  //   3. the ⚡ remains the PRODUCT mark: published ONCE (as the panel service's
-  //      `icon`) and worn by exactly the four dock surfaces, which now take it
-  //      from that one field (`icon: panel.icon`) instead of reaching for the
-  //      constant themselves. That indirection is the point of the split — the
-  //      adapter owns no glyph of its own.
-  check('the ⚡ is still the product mark — published once, worn by exactly the four dock surfaces',
+  //   3. the ⚡ remains the PRODUCT mark, and the core publishes it ONCE — as the
+  //      panel service's `icon`. Wearing it is the ADAPTER's job now: it reads
+  //      `icon: panel.icon` for each dock surface it registers, so the core owns the
+  //      glyph and the adapter owns no glyph of its own. That indirection is the
+  //      point of the split, and the core-side half of it is the count below.
+  check('the ⚡ is still the product mark — published ONCE, as the panel service\'s `icon`',
     /path: 'M13 2 3 14h9l-1 8 10-12h-9l1-8z'/.test(code)
       && (code.match(/icon: LIGHTNING_ICON/g) || []).length === 1
-      && (code.match(/icon: panel\.icon/g) || []).length === 4,
+      && (code.match(/icon: panel\.icon/g) || []).length === 0,
     'LIGHTNING_ICON uses = ' + (code.match(/icon: LIGHTNING_ICON/g) || []).length
       + ', panel.icon uses = ' + (code.match(/icon: panel\.icon/g) || []).length)
 }
@@ -3388,7 +3388,7 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
   }
 }
 
-console.log('\n=== 28. the ownership handshake: the core offers the ⚡, a dock host must CLAIM the panel ===')
+console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stands down only while a host CLAIMS it ===')
 {
   // The split's whole point, in one sentence: the CORE owns the panel and offers the
   // ⚡, and it stands down only because a dock host CLAIMS it. The design this
@@ -3396,20 +3396,17 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡, a dock 
   // "dock-base installed, no dock adapter" rendered NOTHING — no dock panel and no ⚡,
   // because the plugin had concluded that somebody else would draw the panel.
   //
-  // The rows below are the truth table from docs/refactor-plan-core-adapter-split.md
-  // §1.3. Row 1 (core only) is what every section above has exercised all along; the
-  // rest need a dock host, and this harness evaluates the bundle ONCE per VM, so it
-  // cannot compose the plugin a second time. Instead the bundle hands out the two
-  // halves through hooks — `__dockFlashHost()` (the panel host) and
-  // `__dockFlashPanelService()` (the published service) — and a FAKE workbench drives
-  // the adapter's five registrations and its dock-hidden setting.
+  // The dock adapter is a SEPARATE package now (`dock-flash`), so this section drives
+  // the HOST side of the contract — the published service and the claim bookkeeping —
+  // and not the adapter's five registrations, which its own repository's harness owns.
+  // The rows are the truth table from docs/refactor-plan-core-adapter-split.md §1.3.
   const hostSvc = sandbox.window.__dockFlashHost && sandbox.window.__dockFlashHost()
   const panelSvc = sandbox.window.__dockFlashPanelService && sandbox.window.__dockFlashPanelService()
   const boltEl = () => sandbox.document.getElementById('dock-flash-overlay-trigger')
 
-  check('the panel host is published (claim / release / isClaimed)',
-    !!hostSvc && typeof hostSvc.claim === 'function'
-      && typeof hostSvc.release === 'function' && typeof hostSvc.isClaimed === 'function',
+  check('the panel host is published (claim / release / releaseOne / isClaimed)',
+    !!hostSvc && typeof hostSvc.claim === 'function' && typeof hostSvc.release === 'function'
+      && typeof hostSvc.releaseOne === 'function' && typeof hostSvc.isClaimed === 'function',
     hostSvc ? Object.keys(hostSvc).join(',') : 'no __dockFlashHost hook')
 
   check('the service speaks version 1 and exposes exactly the frozen field set',
@@ -3425,77 +3422,82 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡, a dock 
     !hostSvc.isClaimed() && !!boltEl(),
     'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
 
-  // ── a fake dock-base workbench: records what the adapter registers ─────────────
-  const makeFakeWb = () => {
-    const calls = []
-    const settingsHandlers = []
-    let hidden = false
-    const layout = { activity: 'dock-flash:quick-control', floatingWindows: {}, editorTabs: [] }
-    return {
-      calls, settingsHandlers, layout,
-      setHidden(v) { hidden = v },
-      registerPanel(def) { calls.push(['panel', def]); return () => calls.push(['panelDispose', def]) },
-      registerPlugin(def) { calls.push(['plugin', def]); return () => {} },
-      registerActivityBarItem(def) { calls.push(['activity', def]); return () => {} },
-      registerEditorView(def) { calls.push(['editor', def]); return () => {} },
-      registerCommand(def) { calls.push(['command', def]); return () => {} },
-      getLayout: () => layout,
-      getActivityItem: () => ({ paneId: 'dock-flash:quick-control' }),
-      getHiddenPluginIds: () => (hidden ? ['dock-flash'] : []),
-      onDidChangeSetting: (fn) => { settingsHandlers.push(fn); return () => {} },
-      onDidChangeLayout: () => () => {},
-      openView: () => {},
-      closeViewInstance: (id) => calls.push(['close', id]),
-      updateLayout: (patch) => { Object.assign(layout, patch) },
-    }
-  }
-  const injected = []
-  const makeDockCtx = (wb, opts = {}) => {
-    const map = {
-      quickControl: provided.quickControl,
-      dockFlashAlerts: provided.dockFlashAlerts,
-      dockFlashPanel: opts.noPanel ? undefined : (opts.panel !== undefined ? opts.panel : panelSvc),
-      workbench: 'workbench' in opts ? opts.workbench : wb,
-      modules: opts.modules,
-    }
-    return {
-      get: (n) => map[n],
-      provide: (n, v) => { provided[n] = v },
-      on: () => () => {},
-      effect: (fn) => { const d = fn(); return typeof d === 'function' ? d : () => {} },
-      inject: (deps, cb) => { injected.push([deps, cb]); return () => {} },
-      logger: { info() {}, warn() {}, error() {} },
-    }
-  }
-
-  // ── Rows 3-5: a dock host claims, hides, restores, and disposes ────────────────
-  const wb1 = makeFakeWb()
-  const dispose1 = sandbox.window.__dockFlashAdapterMount(makeDockCtx(wb1))
-  check('a dock host that claims the panel registers exactly the five dock surfaces',
-    wb1.calls.filter((c) => c[0] !== 'panelDispose').map((c) => c[0]).join(',')
-      === 'panel,plugin,activity,editor,command',
-    wb1.calls.map((c) => c[0]).join(',') || 'nothing registered')
-
-  check('...and the ⚡ stands down for as long as that claim is held',
+  // ── the handshake, through the published host alone: claim → confirm → release ──
+  const lease = hostSvc.claim()
+  check('a host that claims the panel stands the ⚡ down before it renders anything',
     hostSvc.isClaimed() && !boltEl(),
     'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
+  lease.confirm()
+  hostSvc.releaseOne()
+  check('...and the ⚡ returns the moment that confirmed claim lets go',
+    !hostSvc.isClaimed() && !!boltEl(),
+    'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
 
-  // The core's own header, handed to the dock through the service — including the
-  // wart this split fixed: the old header wrote the close-on-blur preference through
-  // the WORKBENCH service, so `registry.notifyChange` threw into a try/catch and the
-  // workbench header never repainted the switch.
-  const panelDef = (wb1.calls.find((c) => c[0] === 'panel') || [])[1]
-  // dock-base hands a header component its own ViewProps (`{ ctx, viewId, … }`),
-  // while the published service shape (§2) is `{ wb }` — the core header accepts
-  // both, so drive it through each and require the same two buttons.
+  // ── two mounts, ONE lease: the counter that keeps the panel alive for the other ──
+  // Two of dock-base's own paths mount the panel (the sidebar pane and the
+  // floating-window route). The first version handed both the SAME lease while
+  // counting nothing, so whichever unmounted first tore the panel away from the
+  // other, still-mounted one.
+  const leaseA = hostSvc.claim()
+  const leaseB = hostSvc.claim()
+  const claimedByTwo = hostSvc.isClaimed() && !boltEl()
+  // Read the shared-lease fact BEFORE the second release, which ends it by design.
+  const sameLease = !!leaseA && leaseA === leaseB && !leaseA.released
+  hostSvc.releaseOne()
+  check('a SECOND host mounting the panel does not release the first one',
+    claimedByTwo && hostSvc.isClaimed() && !boltEl(),
+    'two mounted: claimed=' + claimedByTwo + ' → after first releaseOne: claimed='
+      + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
+  check('...and both mounts shared the ONE lease the counter was guarding',
+    sameLease,
+    'sameLease=' + String(leaseA === leaseB) + ' released=' + String(!!leaseA && leaseA.released))
+  hostSvc.releaseOne()
+  check('...and the ⚡ returns only when the LAST holder releases',
+    !hostSvc.isClaimed() && !!boltEl(),
+    'after both: claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
+
+  // ── the whole-host release: the dock-hidden path, in ONE step ───────────────────
+  hostSvc.claim()
+  hostSvc.claim()
+  hostSvc.release()
+  check('release() hands the panel back in one step, however many mounts held it',
+    !hostSvc.isClaimed() && !!boltEl(),
+    'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
+  hostSvc.releaseOne()
+  check('...and a mount that lets go AFTER the host did not resurrect a claim',
+    !hostSvc.isClaimed() && !!boltEl(),
+    'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
+
+  // ── Row 6: the watchdog. A host that dies between claim() and its registrations ──
+  hostSvc.claim()
+  check('an UNCONFIRMED claim stands the ⚡ down immediately (the host renders now)',
+    hostSvc.isClaimed() && !boltEl(),
+    'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
+  await new Promise((r) => setTimeout(r, 2200))
+  check('...and the watchdog takes the panel back when nothing was registered within 2s',
+    !hostSvc.isClaimed() && !!boltEl(),
+    'after 2.2s: claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
+
+  // ── the header the service hands a host is the CORE's header ────────────────────
+  // The wart this split fixed: the old header wrote the close-on-blur preference
+  // through the WORKBENCH service, so `registry.notifyChange` threw into a try/catch
+  // and the workbench header never repainted the switch.
+  //
+  // dock-base calls a registered header with its own ViewProps (`{ ctx, viewId, … }`),
+  // while the published service shape (§2) is `{ wb }` — the core header accepts both,
+  // so drive it through each and require the same two buttons.
+  const fakeWb = {
+    getLayout: () => ({ activity: 'dock-flash:quick-control', floatingWindows: {}, editorTabs: [] }),
+    closeViewInstance: () => {},
+    updateLayout: () => {},
+  }
   const kidsFrom = (props) => {
-    const el = panelDef && typeof panelDef.headerComponent === 'function'
-      ? panelDef.headerComponent(props) : null
+    const el = panelSvc && typeof panelSvc.Header === 'function' ? panelSvc.Header(props) : null
     return el && el.props ? el.props.children : null
   }
-  const headerKids = kidsFrom({ wb: wb1 })
-  const headerViaCtx = kidsFrom({ ctx: { get: (n) => (n === 'workbench' ? wb1 : undefined) } })
-  check('the registered header is the CORE\'s header: two buttons, close-on-blur glyph on the first',
+  const headerKids = kidsFrom({ wb: fakeWb })
+  const headerViaCtx = kidsFrom({ ctx: { get: (n) => (n === 'workbench' ? fakeWb : undefined) } })
+  check('the service\'s header is the CORE\'s header: two buttons, close-on-blur glyph on the first',
     Array.isArray(headerKids) && headerKids.length === 2
       && /M3\.65 3\.25h4\.7/.test(headerKids[0].props.dangerouslySetInnerHTML.__html)
       && headerKids[1].props.children === '×'
@@ -3526,150 +3528,25 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡, a dock 
     'stored=' + String(cobBefore) + '→' + String(cobMid) + '→' + String(cobAfter)
       + ' notified=' + notified.join(','))
 
-  wb1.setHidden(true)
-  wb1.settingsHandlers.forEach((fn) => fn())
-  check('dock-hidden hands the panel back: the ⚡ returns and the claim is gone',
-    !hostSvc.isClaimed() && !!boltEl(),
-    'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
+  // ── the structural pins: what makes this a MOVE rather than a rewrite ───────────
+  // 1. The core registers NO dock-base surface. Everything dock-base-specific moved to
+  //    the adapter, so "dock-base is installed" cannot change what the core renders.
+  //    (The core's panel does read `ctx.get('workbench')` for the pane it may be
+  //    mounted in — that call predates the split and is legitimate, so it is
+  //    deliberately not in this list.)
+  const dockOnlyApis = ['getHiddenPluginIds', 'registerActivityBarItem', 'onDidChangeSetting',
+    'registerPanel(', 'registerEditorView(', 'registerCommand(', 'mountWorkbench']
+  const strays = dockOnlyApis.filter((n) => code.indexOf(n) >= 0)
+  check('the core registers NO dock-base surface (source pin — the split\'s real guarantee)',
+    strays.length === 0, 'strays=' + JSON.stringify(strays))
 
-  wb1.setHidden(false)
-  wb1.settingsHandlers.forEach((fn) => fn())
-  check('dock-visible claims it again: the ⚡ stands down once more',
-    hostSvc.isClaimed() && !boltEl(),
-    'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-
-  if (typeof dispose1 === 'function') dispose1()
-  check('disposing the adapter releases the claim — the ⚡ is never left suppressed by a dead host',
-    !hostSvc.isClaimed() && !!boltEl(),
-    'returned=' + typeof dispose1 + ' claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-
-  // ── a host that mounts the panel TWICE must keep it until the LAST one lets go ──
-  // Two of dock-base's own paths lead here (the sidebar pane and the floating-window
-  // route), and the first version gave both mounts the SAME lease — so whichever
-  // unmounted first tore the panel away from the other, still-mounted one. The dock
-  // half now counts its claims, and this drives the sequence that used to break it.
-  const wb2 = makeFakeWb()
-  const disposeA = sandbox.window.__dockFlashAdapterMount(makeDockCtx(wb2))
-  const disposeB = sandbox.window.__dockFlashAdapterMount(makeDockCtx(wb2))
-  const claimedByTwo = hostSvc.isClaimed() && !boltEl()
-  if (typeof disposeA === 'function') disposeA()
-  check('a SECOND host mounting the panel does not release the first one',
-    claimedByTwo && hostSvc.isClaimed() && !boltEl(),
-    'two mounted: claimed=' + claimedByTwo + ' → after first dispose: claimed='
-      + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-  if (typeof disposeB === 'function') disposeB()
-  check('...and the ⚡ returns only when the LAST holder releases',
-    !hostSvc.isClaimed() && !!boltEl(),
-    'after both disposes: claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-
-  // ── Row 6: the watchdog. A host that dies between claim() and its registrations ──
-  hostSvc.claim()
-  check('an UNCONFIRMED claim stands the ⚡ down immediately (the host renders now)',
-    hostSvc.isClaimed() && !boltEl(),
-    'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-  await new Promise((r) => setTimeout(r, 2200))
-  check('...and the watchdog takes the panel back when nothing was registered within 2s',
-    !hostSvc.isClaimed() && !!boltEl(),
-    'after 2.2s: claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-
-  // ── Row 2, the row that motivated the split: dock-base installed, no adapter ────
-  // and the "workbench service lands late" variant of it, which the harness CAN drive
-  // because the adapter resolves it through ctx.inject().
-  const wb3 = makeFakeWb()
-  const beforeInjects = injected.length
-  const dispose3 = sandbox.window.__dockFlashAdapterMount(makeDockCtx(wb3, {
-    workbench: undefined,
-    modules: { graphRows: new Map([['dock-base', { id: 'dock-base' }]]) },
-  }))
-  const lastInject = injected[injected.length - 1]
-  check('dock-base installed but its workbench service not ready: the adapter WAITS and the ⚡ stays',
-    injected.length === beforeInjects + 1 && lastInject && lastInject[0].join(',') === 'workbench'
-      && !hostSvc.isClaimed() && !!boltEl(),
-    'inject=' + JSON.stringify(lastInject && lastInject[0])
-      + ' claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-  wb1.setHidden(false)
-  lastInject[1]({ workbench: wb3 })
-  check('...and the moment it lands, the claim follows — exactly one entry point remains',
-    hostSvc.isClaimed() && !boltEl() && wb3.calls.length === 5,
-    'registered=' + wb3.calls.length + ' claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-  if (typeof dispose3 === 'function') dispose3()
-  check('...and disposing THAT path releases the claim too (the inject fiber is not left holding it)',
-    !hostSvc.isClaimed() && !!boltEl(),
-    'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-
-  // ── the same-tick service-resolution trap: the real-boot failure this section missed ──
-  // Reported from a real boot on this tree: dock-flash was ABSENT from dock-base's plugin
-  // configuration, with a stray ⚡ instead. Cause: apply() mounts the adapter one statement
-  // after `ctx.provide('dockFlashPanel', …)`, and cordis resolves services
-  // ASYNCHRONOUSLY — a `ctx.get()` in that same synchronous call stack returns undefined
-  // even though the service was just provided. MEASURED against cordis 4.0.4 with a
-  // minimal probe: right after provide → `undefined`, on the next tick → the service.
-  // The adapter therefore took its "service is missing" branch, registered NOTHING into
-  // dock-base, and the core fell back to its own ⚡.
-  //
-  // This harness could not catch it, and the reason is the lesson: its ctx stub answers
-  // `get()` from a plain object, synchronously — it stubbed away the exact mechanism that
-  // breaks in production. The row below reproduces the PRODUCTION condition (a ctx that
-  // cannot resolve the panel) and requires registration anyway, because the core now
-  // PASSES the service in.
-  const wbBlind = makeFakeWb()
-  const blindCtx = makeDockCtx(wbBlind, { noPanel: true })
-  const disposeBlind = sandbox.window.__dockFlashAdapterMount(blindCtx, panelSvc)
-  check('a ctx that CANNOT resolve the panel still registers it — the core passes the service',
-    wbBlind.calls.filter((c) => c[0] !== 'panelDispose').length === 5 && hostSvc.isClaimed(),
-    'registered=' + JSON.stringify(wbBlind.calls.map((c) => c[0]))
-      + ' claimed=' + hostSvc.isClaimed())
-  if (typeof disposeBlind === 'function') disposeBlind()
-  check('...and that path gives the ⚡ back when it lets go',
-    !hostSvc.isClaimed() && !!boltEl(),
-    'claimed=' + hostSvc.isClaimed() + ' bolt=' + !!boltEl())
-
-  // …and the CALL SITE has to pass it, or the row above passes while the app still fails.
-  // A SOURCE pin, labelled as one: the lookup fallback is correct for Phase 2 (a separate
-  // package resolving on a later tick) and fatal here.
-  check('...and apply() passes the service explicitly instead of looking it up (source pin)',
-    code.includes('mountDockPanelAdapter(ctx, panelService)'),
-    code.includes('mountDockPanelAdapter(ctx, panelService)')
-      ? 'call site passes panelService' : 'call site does NOT pass it — the app would fail')
-
-  // ── the two refusals: a missing core, and a core from another contract version ──
-  // `console.error`'s collector is restored after section 1 (only the warn channel
-  // stays bound for the whole run), so bind it around this one call — the same
-  // pattern sections 1 and 15 use.
-  const errsBefore = renderErrors.length
-  const prevErr = console.error
-  console.error = (...a) => { renderErrors.push(a.map(String).join(' ')) }
-  const refusedMissing = sandbox.window.__dockFlashAdapterMount(makeDockCtx(makeFakeWb(), { noPanel: true }))
-  console.error = prevErr
-  check('a missing core service registers nothing and NAMES the fix (never a blank page)',
-    refusedMissing === null && renderErrors.length > errsBefore
-      && renderErrors.slice(errsBefore).some((m) => m.includes('dockFlashPanel') && m.includes('dsh-flash')),
-    'returned=' + String(refusedMissing) + ' lastError='
-      + (renderErrors.slice(errsBefore).slice(-1)[0] || 'none'))
-
-  const warnedBefore = warnings.length
-  const refusedVersion = sandbox.window.__dockFlashAdapterMount(
-    makeDockCtx(makeFakeWb(), { panel: { version: 2 } }))
-  check('a service from another contract version is refused rather than half-used',
-    refusedVersion === null && warnings.length > warnedBefore
-      && warnings.slice(warnedBefore).some((m) => m.includes('speaks version 2')),
-    'returned=' + String(refusedVersion) + ' newWarn=' + warnings.slice(warnedBefore).join(' | '))
-
-  // ── the structural pin: the dock surface is ONE region ──────────────────────────
-  // Everything dock-base-specific is confined to the DockAdapter region, which is what
-  // makes Phase 2 a move rather than a rewrite: the core half cannot reach dock-base,
-  // so "no dock-base installed" cannot change what the core does. (The core's panel
-  // does read ctx.get('workbench') for the pane it may be mounted in — that call is
-  // old and legitimate, so it is deliberately NOT part of this pin.)
-  const adapterAt = code.indexOf('//#region DockAdapter')
-  const dockOnlyApis = ['getHiddenPluginIds', 'registerActivityBarItem', 'onDidChangeSetting', 'registerPanel(']
-  const strays = dockOnlyApis.filter((n) => {
-    const at = code.indexOf(n)
-    return at >= 0 && at < adapterAt
-  })
-  check('the dock surface is confined to the DockAdapter region (the core never registers dock-base surfaces)',
-    adapterAt > 0 && strays.length === 0,
-    'regionAt=' + adapterAt + ' strays=' + JSON.stringify(strays))
+  // 2. The client module id IS the `require` key, so the core and the adapter cannot
+  //    share one. The core's is its package name; the adapter keeps `dock-flash`, which
+  //    is also why the id can no longer be inferred from the `dock-flash:*` strings
+  //    everywhere above.
+  check('the client module id is `dsh-flash`, distinct from the adapter\'s `dock-flash` (source pin)',
+    !!definition && definition.id === 'dsh-flash',
+    'id=' + String(definition && definition.id))
 }
 
 console.log('\n' + (failures.length === 0 ? '✅ ALL CHECKS PASSED' : '❌ FAILURES: ' + failures.join('; ')))

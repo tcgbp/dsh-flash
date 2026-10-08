@@ -1,6 +1,6 @@
 name: Sync from Gitee
 
-# Gitee (gitee.com/lenin.guo/dock-flash) is the authoritative source for this
+# Gitee (gitee.com/lenin.guo/dsh-flash) is the authoritative source for this
 # repository; GitHub is a mirror of it.
 #
 # Why this workflow exists instead of Gitee's built-in push mirror:
@@ -37,8 +37,8 @@ jobs:
     steps:
       - name: Mirror Gitee -> GitHub
         env:
-          GITEE_URL: https://gitee.com/lenin.guo/dock-flash.git
-          GITHUB_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/tcgbp/dock-flash.git
+          GITEE_URL: https://gitee.com/lenin.guo/dsh-flash.git
+          GITHUB_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/tcgbp/dsh-flash.git
         run: |
           set -euo pipefail
           git clone --bare "$GITEE_URL" repo.git

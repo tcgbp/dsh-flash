@@ -1,7 +1,7 @@
 {
-  "name": "dock-flash",
-  "version": "2.3.0",
-  "description": "Quick Control dock plugin — a dynamic floating shortcut panel for DSH Workbench with extensible switch registry. Works standalone or with dock-base.",
+  "name": "dsh-flash",
+  "version": "1.0.0",
+  "description": "Quick Control panel core for DSH Workbench — the floating/docked quick-control panel with the extensible switch registry, the skin system and the alert surfaces. Publishes the `dockFlashPanel` service; the dock-base integration ships separately as `dock-flash`.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,19 +18,18 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tcgbp/dock-flash.git"
+    "url": "git+https://github.com/tcgbp/dsh-flash.git"
   },
-  "homepage": "https://github.com/tcgbp/dock-flash#readme",
+  "homepage": "https://github.com/tcgbp/dsh-flash#readme",
   "bugs": {
-    "url": "https://github.com/tcgbp/dock-flash/issues"
+    "url": "https://github.com/tcgbp/dsh-flash/issues"
   },
   "keywords": [
     "dsh",
     "dsh-plugin",
     "deepseek-harness",
-    "dock",
-    "workbench",
     "quick-control",
+    "panel",
     "ui"
   ],
   "dsh": {
@@ -41,8 +40,7 @@
       "inject": [
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-api-remotes",
-        "@deepseek-ai/dsh-api-session-controller",
-        "dock-base"
+        "@deepseek-ai/dsh-api-session-controller"
       ],
       "platform": "web"
     }
@@ -57,13 +55,7 @@
     "@deepseek-ai/schemastery": "^3.18.4"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=4.0.0-rc.1 <5.0.0-0 || >=4.0.1-0 <5.0.0-0",
-    "dock-base": ">=0.1.2-0 <1.0.0-0 || >=0.2.0-0 <1.0.0-0"
-  },
-  "peerDependenciesMeta": {
-    "dock-base": {
-      "optional": true
-    }
+    "@deepseek-ai/cordis": ">=4.0.0-rc.1 <5.0.0-0 || >=4.0.1-0 <5.0.0-0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",

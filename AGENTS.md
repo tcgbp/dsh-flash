@@ -1,6 +1,6 @@
-# AGENTS.md — dock-flash Development Rules
+# AGENTS.md — dsh-flash Development Rules
 
-> This file documents known requirements, development constraints, testing conventions, and hard-won lessons for the dock-flash plugin. Read it before modifying `lib/client.js` or `src/index.ts`.
+> This file documents known requirements, development constraints, testing conventions, and hard-won lessons for the `dsh-flash` core plugin. Read it before modifying `lib/client.js` or `src/index.ts`. The dock-base integration is a separate package — the `dock-flash` adapter — and is not in this repository.
 
 
 ## What belongs in this file, and what does not
@@ -60,11 +60,11 @@ pnpm run build          # tsc → dist/index.js (host half only)
 pnpm run typecheck      # type check without emitting
 ```
 
-- Install into profile: `dsh plugin --profile web add ./dock-flash`
-- dock-flash is **symlinked** in the profile — edits to `lib/client.js` appear on refresh without reinstalling
+- Install into profile: `dsh plugin --profile web add ./dsh-flash`
+- dsh-flash is **symlinked** in the profile — edits to `lib/client.js` appear on refresh without reinstalling
 - Host half changes require `pnpm run build` then restart DSH
 
-**`dist/` is tracked on purpose — never add it back to `.gitignore`.** A git install fetches sources, not built artifacts: nothing runs the `build` script, so a repo without `dist/` arrives missing the host-half entry point (`package.json` `main` and `exports["."]` both point at `./dist/index.js`) and fails to load. Shipping the compiled file lets `dsh plugin --profile <p> add github:tcgbp/dock-flash` work with no build step and **no `allowBuilds` permission**. Do **not** add a `prepare` script alongside it: declaring one makes pnpm ≥10 demand an explicit build allowance before the first `add` succeeds, which would defeat the purpose. Consequence: every `src/index.ts` change must be followed by `pnpm run build` and a commit of `dist/` in the same change.
+**`dist/` is tracked on purpose — never add it back to `.gitignore`.** A git install fetches sources, not built artifacts: nothing runs the `build` script, so a repo without `dist/` arrives missing the host-half entry point (`package.json` `main` and `exports["."]` both point at `./dist/index.js`) and fails to load. Shipping the compiled file lets `dsh plugin --profile <p> add github:tcgbp/dsh-flash` work with no build step and **no `allowBuilds` permission**. Do **not** add a `prepare` script alongside it: declaring one makes pnpm ≥10 demand an explicit build allowance before the first `add` succeeds, which would defeat the purpose. Consequence: every `src/index.ts` change must be followed by `pnpm run build` and a commit of `dist/` in the same change.
 
 ---
 
@@ -89,7 +89,7 @@ and the API route that still works while `github.com` is unreachable — is in
   unrecallable as the tag — it sits behind gate 2, never "while I am here". npm 11.16 **stages** a
   bypass-2FA publish instead of publishing it, and its packument is CDN-cached, so both "it failed" and
   "it worked" are easy to misread: the staging symptoms, the accepted `add` specs, and the way to verify
-  a publish actually landed are in [docs/releasing.md](docs/releasing.md). A companion's `dock-flash`
+  a publish actually landed are in [docs/releasing.md](docs/releasing.md). A companion's `dsh-flash`
   peer range is a hard **npm** gate, not documentation — a stale one makes `npm install` fail with
   `ERESOLVE`, while `dsh plugin add` only warns.
 
@@ -100,20 +100,30 @@ and the API route that still works while `github.com` is unreachable — is in
 
 ### Plugin Contract
 
-dock-flash can run in two modes:
+The core has one hosting story: it always publishes a service and offers its own standalone ⚡.
 
-**Workbench mode** (dock-base installed) — follows the [dock-base plugin contract](https://github.com/AKS1st/dock/blob/main/src/client/contract.ts). All workbench interaction goes through `ctx.workbench`:
+**The `dockFlashPanel` service** — `ctx.provide('dockFlashPanel', …)` exposes the core's panel and its host-control handshake:
 
-| Registration | API | Purpose |
-|---|---|---|
-| Sidebar Panel | `ctx.workbench.registerPanel()` | Quick control panel (sideBar area) |
-| Plugin Entry | `ctx.workbench.registerPlugin()` | Settings panel card — title "Flash" (visibility toggle + Open button) |
-| Activity Bar Item | `ctx.workbench.registerActivityBarItem()` | ⚡ icon |
-| Editor View | `ctx.workbench.registerEditorView()` | Quick control panel (draggable to floating) |
-| Command | `ctx.workbench.registerCommand()` | `dock-flash:openQuickControl` |
-| Service | `ctx.provide('quickControl', registry)` | Pub/sub switch registry for other plugins |
+| Field | Value |
+|---|---|
+| `version` | `1` — the contract version; a consumer checks it before claiming |
+| `Panel`, `ErrorBoundary` | the QuickControlPanel and its mandatory error boundary |
+| `Header` | `({ wb }) => React element` — close-on-blur toggle + close button, painted imperatively |
+| `icon` | `LIGHTNING_ICON` (SVG string) |
+| `registry` | the QuickControlRegistry instance (also published as `quickControl`) |
+| `i18n` | `{ t, L }` |
+| `host` | `{ claim(), release(), releaseOne(), isClaimed() }` — the ownership handshake below |
 
-**Standalone mode** (no dock-base) — injects a ⚡ trigger button through `ctx.slots.inject(<slot>, ...)`, where the slot is chosen by the `trigger-position` switch (`dock-flash:trigger-position`, default `conversation.input.right`). Clicking the trigger toggles a floating QuickControlPanel anchored to the button. The floating panel has a drag-to-move title bar (⠿ grip + ⚡ + the localized `title` string + close-on-blur toggle + × close) and uses `react-dom/client`'s `createRoot`. That toggle and the outside-click handler read the same `localStorage` key, so close-on-blur here behaves exactly as it does in workbench mode.
+**Standalone by default** — injects a ⚡ trigger button through `ctx.slots.inject(<slot>, ...)`, where the slot is chosen by the `trigger-position` switch (`dock-flash:trigger-position`, default `conversation.input.right`). Clicking the trigger toggles a floating QuickControlPanel anchored to the button. The floating panel has a drag-to-move title bar (⠿ grip + ⚡ + the localized `title` string + close-on-blur toggle + × close) and uses `react-dom/client`'s `createRoot`. That toggle and the outside-click handler read the same `localStorage` key, so close-on-blur here tracks the header toggle in a dock host too.
+
+### The ownership handshake — the ONLY mode decision
+
+The core **never** looks for `workbench` or dock-base. It always mounts its ⚡, and stands it down only while a HOST holds a CLAIM.
+
+- `host.claim()` unmounts the standalone ⚡ and returns a lease; `lease.confirm()` says the host finished registering what it claimed; `host.release()` (or `lease.release()`, or the plugin's `ctx.on('dispose')`) brings the ⚡ back. `releaseOne()` drops one holder without releasing the others; `isClaimed()` reports whether a live claim exists.
+- **A claim that is not `confirm()`ed within `CLAIM_WATCHDOG_MS` (2000 ms) is rolled back**: the core warns and re-mounts its ⚡, so a host that claims and then throws cannot leave the user with no panel at all. A lease is bound to the claimer's fiber and released on dispose, so an adapter that forgets `release()` cannot leak the claim.
+- **The dock-base workbench registrations — sidebar panel, activity bar item, editor view, command, settings card — live in the separate `dock-flash` adapter package.** This core registers none of them; it supplies `Panel`, `Header`, `ErrorBoundary` and `icon` and nothing else about the dock.
+- **`apply()` is idempotent.** Two patch layers may both insert this plugin's row (`insert` does not dedupe by id), so a second `apply()` returns immediately when `ctx.get('dockFlashPanel')` already exists. The guard is the SERVICE, never a module-level flag, so disable→enable still works.
 
 **`sidebar.footer.action` is deliberately not offered as a trigger position.** It is a shared slot that CordisPanel and other plugins also occupy, and a second occupant produces visual conflicts with them. Do not re-add it to `TRIGGER_POSITIONS`, and keep the fallback in `loadTriggerPosition()` pointing at a conversation slot. Note the trade-off: every slot-based position lives inside the conversation UI, so with no session open the trigger is not rendered at all — that is accepted.
 
@@ -201,25 +211,11 @@ than by the drag's own end — which is why a click straight after a drag still 
 > Every rule above is the residue of a defect. The defects in full, with the measurements and the
 > harness that proves them: [docs/architecture-notes.md](docs/architecture-notes.md).
 
-### Mode Detection
+### Mode Detection: none, and that is deliberate
 
-```js
-// In apply(ctx):
-const wb = ctx.get ? ctx.get('workbench') : undefined
+The old design chose between "workbench mode" and "standalone mode" by probing `ctx.get('workbench')`. That decision is **gone**. Probing the environment is what produced the worst failure: with dock-base installed and the adapter absent, the core saw a workbench, stood down, and nobody registered the panel — an empty UI with no error. The core now mounts its own ⚡ unconditionally and defers only to an explicit `claim()` (see "The ownership handshake" above). The core's own `inject` stays `inject: []`.
 
-if (wb) {
-  // Workbench mode: register panel, activity bar, editor view, command
-  // Register the dock-flash-owned switches — but NOT close-on-blur, which in
-  // this mode exists only as the panel-header toggle
-} else {
-  // Standalone mode: inject the trigger button into the configured slot, and
-  // register trigger-position + close-on-blur as Layout switches
-}
-```
-
-The `inject` array is empty (`inject: []`) — workbench is resolved lazily via `ctx.get('workbench')` rather than declared as a hard dependency. This ensures `apply()` runs even when dock-base is not installed.
-
-**Critical**: `dsh.client.inject` in `package.json` MUST include `"dock-base"` (the base package name, NOT `"dock-base/client"`). This is NOT a hard dependency — it's a **load-order hint** for the DSH ModuleLoader. When dock-base is installed, `arriveGraphRow()` ensures it loads before dock-flash, so `ctx.get('workbench')` finds the service already registered at `apply()` time. When dock-base is absent, the entry is silently skipped (`graphRows.get('dock-base')` returns `undefined`), and dock-flash enters standalone mode. Without this load-order hint, dock-flash may load before dock-base, causing `ctx.get('workbench')` to return `undefined` even when dock-base IS installed.
+**Critical**: the `"dock-base"` load-order hint now belongs to the **ADAPTER's** `package.json`, not this one. The core's `dsh.client.inject` has no `dock-base` entry at all — it lists only DSH client packages. In the adapter it is NOT a hard dependency but a **load-order hint** for the DSH ModuleLoader: `arriveGraphRow()` loads the base before the plugin that calls `ctx.get('workbench')`, and an absent entry is silently skipped (`graphRows.get('dock-base')` returns `undefined`).
 
 **Why the base name**: `arriveGraphRow()` looks up `inject` entries with
 `graphRows.get(packageName)` and never strips the `/client` suffix, while graph-row keys are base
