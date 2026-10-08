@@ -1,0 +1,41 @@
+# dsh-market submission entry for the dsh-flash core.
+#
+# To submit: copy this file to
+#   <your-fork-of-awesome-dsh-plugin>/data/plugins/tcgbp__dsh-flash.yml
+# and open a PR against https://github.com/awesome-dsh-plugin/awesome-dsh-plugin.
+# After it is merged, update it here rather than in a second place.
+#
+# Rules enforced by the registry's own scripts/lib/entries.mjs::validateEntries:
+#   - only these keys: url, name, category, description, tarball
+#     (no `npm:` key — the npm mapping is resolved from the repository)
+#   - filename must equal slugFor(url): <owner>__<repo>.yml
+#   - category must be one of the registry's CAT_IDS (this one is `ui`)
+#   - description.en is required, single line; description.zh is optional
+#   - tarball must be https on GitHub release hosting and end in .tgz/.tar.gz
+# Validate the entry against that module before submitting.
+#
+# The tarball is deliberately the version-free releases/latest/download/ URL. Which release that is
+# stays a release-side decision rather than something this file has to follow: publishing a new
+# Release moves the URL by itself, so the entry needs no edit and no pull request per release.
+# Pinning it to a tag would trade that for a manual follow-up every time.
+#
+# The tarball is the FALLBACK, not what users normally receive. Measured 2026-10: dsh-market's
+# installTargetFor() resolves an entry's npm name FIRST (entry.npm), then this Release tarball, then
+# `github:<owner>/<repo>` — and that machine's market log shows dock-flash@1.6.1 installed from the
+# registry. That name is the ADAPTER's, whose entry this core's was split out of; the core publishes
+# to npm as dsh-flash. The registry resolves the npm mapping from the PUBLISHED package's own
+# `repository` field, which is why package.json must name github.com/tcgbp/dsh-flash: a missing
+# mapping leaves this tarball in use, and a WRONG `repository` maps the package to somebody else's
+# entry — and since it is published metadata, fixing it later costs a release.
+#
+# Submission state: this is the CORE's own entry, a new listing created by the core/adapter split.
+# Before filing the PR, check the registry's repo-age gate against the GitHub mirror's created_at —
+# a PR from a repository younger than that window is rejected on age, not on content. The adapter
+# keeps its own separate `tcgbp__dock-flash.yml` entry in its own repository.
+url: https://github.com/tcgbp/dsh-flash
+name: tcgbp/dsh-flash
+category: ui
+description:
+  en: 'The Quick Control panel core for DSH Web: a standalone floating shortcut panel whose switches other plugins register through the quickControl service, with the skin system and zh/en i18n. The dock-base Workbench integration ships separately as the dock-flash adapter.'
+  zh: 'DSH Web 快捷控制面板核心：可独立浮动的快捷面板，开关项由其它插件通过 quickControl 服务注册，内置皮肤系统与中英文 i18n；dock-base 工作台集成由 dock-flash 适配器单独提供。'
+tarball: https://github.com/tcgbp/dsh-flash/releases/latest/download/dsh-flash.tgz

@@ -6,13 +6,13 @@ Thumbs.db
 .pnpm-store/
 .cache/
 
-# Packaged release artifacts. `pnpm pack` writes dock-flash-<version>.tgz, which is
-# renamed to dock-flash.tgz for the GitHub Release upload — the registry entry's
-# tarball URL points at releases/latest/download/dock-flash.tgz. Both forms are
+# Packaged release artifacts. `pnpm pack` writes dsh-flash-<version>.tgz, which is
+# renamed to dsh-flash.tgz for the GitHub Release upload — the registry entry's
+# tarball URL points at releases/latest/download/dsh-flash.tgz. Both forms are
 # ignored: a stale tarball sitting in the tree is how a release ships the previous
 # build, and the file is reproducible from the commit any time it is needed.
-dock-flash.tgz
-dock-flash-*.tgz
+dsh-flash.tgz
+dsh-flash-*.tgz
 
 # Scratch files. Ad-hoc repro pages, throwaway scripts and API responses written while
 # verifying a change all use a leading underscore, and `git add -A` has twice swept them
