@@ -34,7 +34,7 @@ file buys nothing. `docs/` is not a candidate name, which is why relocation work
 src/index.ts      HOST half      → tsc → dist/index.js
 lib/client.js     BROWSER half   → single file, NO build step, edited directly
 dist/index.js     compiled host half — TRACKED on purpose (see Build & Install)
-cordis.patch.yml  bundle layer: inserts the host rows into the profile
+cordis.patch.yml  bundle layer: inserts this package's host row (id `dock-flash`, name `dsh-flash`)
 package.json      manifest + dsh.client.inject
 docs/             long-form notes — NOT injected, read on demand
 scripts/          repo tooling — NOT published (see `files` in package.json)
@@ -60,7 +60,7 @@ pnpm run build          # tsc → dist/index.js (host half only)
 pnpm run typecheck      # type check without emitting
 ```
 
-- Install into profile: `dsh plugin --profile web add ./dsh-flash`
+- Install into profile: `dsh plugin --profile web add ./dsh-flash` (or `… add dsh-flash` from npm)
 - dsh-flash is **symlinked** in the profile — edits to `lib/client.js` appear on refresh without reinstalling
 - Host half changes require `pnpm run build` then restart DSH
 
@@ -622,7 +622,10 @@ The rules, one line each. Phase tables, case histories and measurements are in
   id is `dream-skin`. `POST /plugins/dock-flash/set-plugin-entry` is the authority because the HOST
   reads the package's own `cordis.patch.yml`. **Resolve the profile from `profileContext`, never
   `readdirSync` order**, and write the row with **no `name:`** — DSH skips a name mismatch, so the id
-  alone addresses the entry. An EMPTY candidate list is not "nothing to do": before
+  alone addresses the entry. After the core/adapter split the core's specifier changed from
+  `dock-flash` to `dsh-flash`, and every `^2` profile's panel-config entry still asserts the OLD name:
+  it must be edited to `name: dsh-flash` (id unchanged) or DSH drops its whole `config:` block
+  silently — measured on a real profile, 2026-10. An EMPTY candidate list is not "nothing to do": before
   `/profile-packages` answers `enabledNow` reads `false`, which for a disable equals the wanted value
   — that is the cold-load "需要切两次" first press, and that branch must drive the HOST route instead
   of falling through to `byBundlePath()`.
@@ -781,7 +784,7 @@ form and each carries its own example, so they are not repeated here — check t
 | Standalone panel placed only above/below the ⚡ | Panel cut off when the ⚡ is mid-page: 70vh exceeds either side's room, so part of it lands outside the window — losing the HEADER, grip and × | `positionPanel()` falls back to placing the panel **beside** the button, clamped into the window. Never resize the panel to make it fit, and never assume either axis has room |
 | `registerActivityBarItem()` without `pluginId` | Listed in Settings but no "Open" button | `pluginEntryItem()` matches `pluginId ?? id`, whose fallback never equals `'dock-flash'`. Add `pluginId: 'dock-flash'` |
 | `L('key')` (a function) for `registerPlugin` title/description | Blank name and description on the plugin card | `createPluginCard` renders those as React children and never calls `resolveSettingText()`. `registerPlugin` needs **static strings** |
-| `"<pkg>/client"` in `dsh.client.inject` | Load-order hint silently ignored; a third-party switch never appears | `arriveGraphRow()` does not strip `/client` for inject lookups. Use base names — `"dock-base"`, `"dock-flash"` |
+| `"<pkg>/client"` in `dsh.client.inject` | Load-order hint silently ignored; a third-party switch never appears | `arriveGraphRow()` does not strip `/client` for inject lookups. Use base names — `"dock-base"`, `"dsh-flash"` |
 | `minWidth: 0` on a `flex: none` element | Looks like a shrink fix, is a no-op | `flex: none` is `flex-shrink: 0`, so there is nothing to act on. A no-op fix is worse than none — it reads as solved |
 | A glyph wider than its font box | A 2-4px overflow that survives every structural fix | Size a pixel `inline-flex` box for the WIDEST glyph of any set that swaps, same box in both states, never derived from one font. See [notes](docs/architecture-notes.md) |
 | An emoji-capable glyph as a small icon | A full-colour glyph beside monochrome `⇅`/`↺`/`▶` | `☑`/`☐` and an eye are emoji-presentation code points and render through the colour-emoji font on Windows. Prefer plain geometric shapes: `●`, `○`, `◉` |
@@ -800,7 +803,7 @@ mismatch, and the `_skinBodyAttrs` cases — are in **[docs/architecture-notes.m
 
 | Package | Type | Purpose | Notes |
 |---|---|---|---|
-| `dock-base` >=0.1.2-0 <1.0.0-0 \|\| >=0.2.0-0 <1.0.0-0 | peer (optional) | `ctx.workbench` registry services | Optional — plugin runs in standalone mode without it |
+| ~~`dock-base`~~ | — | — | **Not a dependency of THIS package.** The dock-base peer, and the whole `ctx.workbench` contract, belong to the `dock-flash` adapter; the core names dock-base nowhere. Do not add it back here. |
 | `@deepseek-ai/cordis` >=4.0.0-rc.1 <5.0.0-0 \|\| >=4.0.1-0 <5.0.0-0 | peer | Plugin framework | Required |
 | `@deepseek-ai/dsh-settings` | devDep | Settings service types (host half) | |
 | `@deepseek-ai/schemastery` | dep | Schema definition for settings | Required at runtime — the host half **statically imports** it (default export; there is no named `Schema`). It must stay a real dependency: an ESM import of a missing package fails at load, unlike the old silent `require` in a try/catch |
