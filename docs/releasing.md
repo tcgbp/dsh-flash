@@ -1,4 +1,4 @@
-# dock-flash — publishing and repository sync
+# dsh-flash — publishing and repository sync
 
 The release procedure and the repository-sync rules. `AGENTS.md` keeps only the three sync rules
 that must never be got wrong, because this is a PROCEDURE: you need it when cutting a release, not
@@ -59,12 +59,12 @@ pnpm run build
 git push origin master
 #    dispatch the mirror and confirm the tree hash matches — see below
 
-# 4. Build the release artifact. `pnpm pack` writes dock-flash-<version>.tgz; the
-#    GitHub Release asset must be named dock-flash.tgz, because the dsh-market
-#    registry entry's tarball URL is releases/latest/download/dock-flash.tgz —
+# 4. Build the release artifact. `pnpm pack` writes dsh-flash-<version>.tgz; the
+#    GitHub Release asset must be named dsh-flash.tgz, because the dsh-market
+#    registry entry's tarball URL is releases/latest/download/dsh-flash.tgz —
 #    the FALLBACK target for an entry whose npm mapping is absent, not the one
 #    the market normally installs.
-pnpm pack && mv dock-flash-<version>.tgz dock-flash.tgz
+pnpm pack && mv dsh-flash-<version>.tgz dsh-flash.tgz
 
 # 5. Tag and push the tag, then dispatch the mirror ONCE MORE — the tag needs
 #    its own run. Dispatch it on `master`, never on the tag: a workflow_dispatch
@@ -98,7 +98,7 @@ message, which is a different field and is allowed to say something.
 field is also what the registry's `releases/latest` link is read beside, so keeping it mechanical is
 what makes "which version is live" answerable at a glance.
 
-**The tarball is gitignored on purpose.** Both `dock-flash.tgz` and `dock-flash-<version>.tgz` are in
+**The tarball is gitignored on purpose.** Both `dsh-flash.tgz` and `dsh-flash-<version>.tgz` are in
 `.gitignore`, so it can never be committed — a stale tarball in the tree is how a release ships the
 previous build, and it is reproducible from the tagged commit at any time. Nothing else needs editing
 per release: the registry entry points at `releases/latest`, so it follows the newest Release on its
@@ -109,13 +109,13 @@ own.
 - `/repos/<owner>/<repo>/releases/latest` reports the expected tag, and lists the asset.
 - Download the asset back through `api.github.com` and `cmp` it against the local build. Byte
   equality is the only proof the upload was not truncated.
-- **Query the registry with the package's EXACT name — `dock-flash`, no `s`.** The four companions
-  are all `dsh-flash-*`, so `dsh-flash` reads as the obvious short form and is simply a different,
-  non-existent package: it answers `{"error":"Not found"}` for its packument, every version AND its
-  tarball, which looks exactly like a publish that never landed. It cost a false alarm once — an
-  `npm install dsh-flash@<version>` (also a typo) failing 404 had already been read as "the release
-  is broken". Check the packument, not only `/pkg/<version>`: the packument is what every
-  `npm install` resolves through, and a `?cb=` query string does NOT defeat its CDN cache.
+- **Query the registry with the package's EXACT name — `dsh-flash`.** The adapter is `dock-flash` and
+  the four companions are all `dsh-flash-*`, so a near-miss name resolves to a different, non-existent
+  package: it answers `{"error":"Not found"}` for its packument, every version AND its tarball, which
+  looks exactly like a publish that never landed. It cost a false alarm once — an `npm install` of the
+  wrong name failing 404 had already been read as "the release is broken". Check the packument, not
+  only `/pkg/<version>`: the packument is what every `npm install` resolves through, and a `?cb=`
+  query string does NOT defeat its CDN cache.
 - Do not try to verify by fetching `releases/latest/download/...` from the browser on the maintainer
   machine: `github.com` is intermittently unreachable there while `api.github.com` is not, so a
   connection reset says nothing about whether the asset is good.
@@ -128,10 +128,11 @@ Moved here from `AGENTS.md`, which keeps the one-line rule and points here: it i
 not something needed while writing code.
 
 The version is **this package's own** — it says nothing about a sibling's, and nothing compares the
-two (npm, pnpm, the ModuleLoader and dsh-market all treat a plugin's version as private). What
-declares compatibility with dock-base is the `peerDependencies` range, not a major number, so
-`dock-flash 1.x` alongside `dock-base 0.2.2` is a supported pair by construction — and the family is
-uneven anyway (dock-git 0.3.4, dock-files 0.3.0, dock-images 0.1.2, dock-base 0.2.2). **Never
+two (npm, pnpm, the ModuleLoader and dsh-market all treat a plugin's version as private). This core
+declares no `dock-base` peer at all — the adapter `dock-flash` depends on `dsh-flash` (`^1`) and
+declares the dock-base range — so `dsh-flash 1.x` alongside `dock-base 0.2.2` is a supported pair by
+construction — and the family is uneven anyway (dock-git 0.3.4, dock-files 0.3.0, dock-images 0.1.2,
+dock-base 0.2.2). **Never
 renumber a released version:** a published tag and Release cannot be recalled, and stepping back from
 `1.x` to `0.x` is not expressible as a non-breaking change for anyone holding a range (`^1.0.0`
 accepts all of 1.x; `^0.2.2` accepts only `0.2.x`).
@@ -160,8 +161,8 @@ this table governs the next one.
 
 | Repository | Role | How it receives commits |
 |---|---|---|
-| `gitee.com/lenin.guo/dock-flash` | **Authoritative** | `git push` — the only remote configured (`origin`) |
-| `github.com/tcgbp/dock-flash` | Mirror | `.github/workflows/sync-from-gitee.yml` |
+| `gitee.com/lenin.guo/dsh-flash` | **Authoritative** | `git push` — the only remote configured (`origin`) |
+| `github.com/tcgbp/dsh-flash` | Mirror | `.github/workflows/sync-from-gitee.yml` |
 
 **Always commit and push to Gitee.** No `github` remote is configured locally, deliberately: github.com is **intermittently** unreachable from the maintainer machine (TCP 443 resets, or 21 s timeouts, no proxy available), so a dual-push succeeds unpredictably — one repository can take the commit while the other rejects it — and the two then sit silently divergent until the mirror runs. The intermittency is the problem, not a permanent block; see the measured asymmetry below.
 
@@ -172,16 +173,16 @@ GitHub is updated by `.github/workflows/sync-from-gitee.yml`, which runs on GitH
 ```sh
 tok=$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill | sed -n 's/^password=//p')
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $tok" \
-  https://api.github.com/repos/tcgbp/dock-flash/actions/workflows/sync-from-gitee.yml/dispatches \
+  https://api.github.com/repos/tcgbp/dsh-flash/actions/workflows/sync-from-gitee.yml/dispatches \
   -d '{"ref":"master"}'
 ```
 
-`204` means the run is queued, and it settles in well under a minute. Verify through the API too, because `git ls-remote` needs the blocked host: compare `commit.tree.sha` from `/repos/tcgbp/dock-flash/commits/master` against the local `git rev-parse master^{tree}`. Matching **tree** hashes prove the two repositories hold identical content; identical *commit* hashes already imply that, so the tree comparison is what settles the question when the hashes differ — after a commit is re-created through the Git Data API, for instance, where the same tree gets a new sha. Keep the token in a shell variable for the single call, as above: never echo it, and never let it reach a log or a file.
+`204` means the run is queued, and it settles in well under a minute. Verify through the API too, because `git ls-remote` needs the blocked host: compare `commit.tree.sha` from `/repos/tcgbp/dsh-flash/commits/master` against the local `git rev-parse master^{tree}`. Matching **tree** hashes prove the two repositories hold identical content; identical *commit* hashes already imply that, so the tree comparison is what settles the question when the hashes differ — after a commit is re-created through the Git Data API, for instance, where the same tree gets a new sha. Keep the token in a shell variable for the single call, as above: never echo it, and never let it reach a log or a file.
 
 **A FAILED run is usually the runner reaching Gitee, not the mirror being broken — and a failed run is not a lost commit: dispatch again.** The failure is not symmetric with the one above. Measured twice in one release: the job spent five minutes in `Cloning into bare repository 'repo.git'...` and then died with
 
 ```
-fatal: unable to access 'https://gitee.com/lenin.guo/dock-flash.git/': SSL connection timeout
+fatal: unable to access 'https://gitee.com/lenin.guo/dsh-flash.git/': SSL connection timeout
 ```
 
 Runs #170 and #172 failed that way while #169 and #171 succeeded, and the next dispatch after each failure landed the commit — so the CLONE (runner → Gitee) is what times out, not the push (runner → GitHub), and nothing about the repository is wrong. A failed run leaves GitHub exactly as it was, which is why the tree check above is what decides: if it is stale, dispatch again, and remember the hourly schedule is a free retry. Read the log before theorising — `/actions/runs/<id>/jobs` names the failing step, and `/actions/jobs/<id>/logs` carries the line above.
@@ -209,14 +210,14 @@ tok=$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill | sed -
 
 # Create the Release. target_commitish is master; the tag must already exist on GitHub.
 curl -sS -X POST -H "Authorization: Bearer $tok" -H "Accept: application/vnd.github+json" \
-  https://api.github.com/repos/tcgbp/dock-flash/releases -d @release.json
+  https://api.github.com/repos/tcgbp/dsh-flash/releases -d @release.json
 #   -> note the returned "id" and "upload_url"
 
 # Upload the asset. Content-Type must be application/gzip, and the ?name= is what
 # the registry URL depends on.
 curl -sS -X POST -H "Authorization: Bearer $tok" -H "Accept: application/vnd.github+json" \
-  -H "Content-Type: application/gzip" --data-binary @dock-flash.tgz \
-  "https://uploads.github.com/repos/tcgbp/dock-flash/releases/<id>/assets?name=dock-flash.tgz"
+  -H "Content-Type: application/gzip" --data-binary @dsh-flash.tgz \
+  "https://uploads.github.com/repos/tcgbp/dsh-flash/releases/<id>/assets?name=dsh-flash.tgz"
 ```
 
 The upload response carries a `digest` (`sha256:…`) and the asset `size` — check both against the
@@ -231,27 +232,29 @@ resolves to `C:\tmp`. Write scratch files inside the repository and delete them 
 
 ## Publishing to npm
 
-`dock-flash` is also published to **npm** under its own name, and that is a **second, independent
+`dsh-flash` is also published to **npm** under its own name, and that is a **second, independent
 channel**: the GitHub Release is what the dsh-market entry's tarball URL points at, while npm is what
-`npm install dock-flash` and any npm-based tooling resolve. Neither one follows the other, so a
+`npm install dsh-flash` and any npm-based tooling resolve. Neither one follows the other, so a
 release is not finished until npm is updated — or the skip is a deliberate decision.
 
 Everything in this section sits **behind gate 2**. `npm publish` is as observable and as unrecallable
 as the tag, so it is not a step to run "while I am here".
 
-**npm carries only the versions actually published to it.** `dock-flash` went `1.5.2` → `1.6.1` →
-`2.0.2`; `1.6.2`–`1.6.5`, `2.0.0` and `2.0.1` exist as tags and Releases but never reached npm. That
-is allowed (npm does not require contiguous versions) but it means an npm user jumps straight across
-whatever the missing versions contained — for `2.0.2` that included 2.0.0's extraction of the context
-monitor into `dsh-flash-ctx-mon`.
+**npm carries only the versions actually published to it.** The adapter's `dock-flash` went `1.5.2` →
+`1.6.1` → `2.0.2`; `1.6.2`–`1.6.5`, `2.0.0` and `2.0.1` exist as tags and Releases but never reached
+npm. That is allowed (npm does not require contiguous versions) but it means an npm user jumps straight
+across whatever the missing versions contained — for `2.0.2` that included 2.0.0's extraction of the
+context monitor into `dsh-flash-ctx-mon`. This core publishes under its own, new npm name, so its own
+history starts at `1.0.0` rather than continuing that one.
 
 ### Order, and the peer range is a hard gate
 
-**Publish `dock-flash` first, then the companions** (`dsh-flash-ctx-mon`, `dsh-flash-mem-mon`,
-`dsh-flash-net-mon`, `dsh-flash-proxy`), each from its own repository.
+**Publish `dsh-flash` first, then the adapter `dock-flash` and the companions**
+(`dsh-flash-ctx-mon`, `dsh-flash-mem-mon`, `dsh-flash-net-mon`, `dsh-flash-proxy`), each from its own
+repository.
 
 npm 7+ resolves `peerDependencies` and **errors** when they conflict; pnpm only warns. So a companion
-whose range excludes the dock-flash being published is a package nobody can install with npm, however
+whose range excludes the `dsh-flash` being published is a package nobody can install with npm, however
 well it works under `dsh plugin add`. Measured, with the packed tarballs:
 
 ```
@@ -261,7 +264,7 @@ npm error Could not resolve dependency:
 npm error peer dock-flash@">=1.5.0-0 <2.0.0-0" from dsh-flash-ctx-mon@0.1.3
 ```
 
-Before publishing any companion, check that its `dock-flash` range accepts the version going out — and
+Before publishing any companion, check that its `dsh-flash` range accepts the version going out — and
 spell the range with **one branch per tuple whose prereleases must resolve**
 (`>=1.5.0-0 <2.0.0-0 || >=2.0.0-0 <3.0.0-0`). A single `>=1.5.0-0 <3.0.0-0` looks equivalent and is
 not: semver only lets a prerelease satisfy a comparator set whose matching tuple also carries one, so
@@ -297,13 +300,13 @@ publish failed from that — check the version endpoint with a cache-buster:
 ```sh
 # 200 means this exact version exists. (Write scratch files inside the repo: under
 # Git for Windows /tmp is C:\tmp, and a Windows tool cannot read an MSYS /tmp path.)
-curl -sS -o v.json -w '%{http_code}\n' "https://registry.npmjs.org/dock-flash/2.0.2?t=$(date +%s)"
+curl -sS -o v.json -w '%{http_code}\n' "https://registry.npmjs.org/dsh-flash/<version>?t=$(date +%s)"
 ```
 
 A `200` proves a version exists; it does not prove the version is the one you built. Download the
-published tarball and assert what the release was about — the version, the `dock-flash` peer range,
+published tarball and assert what the release was about — the version, the `dsh-flash` peer range,
 and the specific file or string that changed. And do the one check that actually settles it: install
-the published versions together in an empty directory (`npm install dock-flash@<v> <companions>`),
+the published versions together in an empty directory (`npm install dsh-flash@<v> <companions>`),
 which is the ERESOLVE scenario above.
 
 ### The sequence
@@ -312,7 +315,7 @@ which is the ERESOLVE scenario above.
 size, so a missing `README` or a stray file shows up before anything is public.
 
 ```sh
-# Per package, in dependency order (dock-flash first, then each companion from its own repo):
+# Per package, in dependency order (dsh-flash first, then each companion from its own repo):
 npm publish --access public            # uses the token in ~/.npmrc
 npm publish --access public --otp=123456   # when the account demands an OTP per write
 
@@ -337,27 +340,27 @@ subcommand, and there is no `enable`. So every form pnpm accepts works:
 
 | Form | Example |
 |---|---|
-| npm name | `dsh plugin --profile web add dock-flash dsh-flash-ctx-mon` — **pnpm takes several at once** |
-| name + range | `dock-flash@^2` |
-| local path / `file:` / `link:` | `./dock-flash` (relative is anchored to the *invoking* cwd) |
-| git | `github:tcgbp/dock-flash`, `git+https://gitee.com/lenin.guo/dock-flash.git` |
-| tarball URL or path | `https://github.com/tcgbp/dock-flash/releases/latest/download/dock-flash.tgz` |
+| npm name | `dsh plugin --profile web add dsh-flash dsh-flash-ctx-mon` — **pnpm takes several at once** |
+| name + range | `dsh-flash@^1` |
+| local path / `file:` / `link:` | `./dsh-flash` (relative is anchored to the *invoking* cwd) |
+| git | `github:tcgbp/dsh-flash`, `git+https://gitee.com/lenin.guo/dsh-flash.git` |
+| tarball URL or path | `https://github.com/tcgbp/dsh-flash/releases/latest/download/dsh-flash.tgz` |
 
-**Nothing is built, and nothing needs approving.** `dist/` is committed and **none of the five packages
-declares `prepare`, `prepublish`, `prepack` or `publish`**, so an npm, tarball or `github:` install
+**Nothing is built, and nothing needs approving.** `dist/` is committed and **none of the family's
+packages declares `prepare`, `prepublish`, `prepack` or `publish`**, so an npm, tarball or `github:` install
 lands the committed `dist/` as-is and pnpm asks for no `allowBuilds` entry. This is the payoff of
 tracking `dist/` (see `AGENTS.md`'s Build & Install). **Adding a `prepare` script later would break the
 `github:` form**: pnpm would refuse with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` until the user answered
 `allowBuilds`.
 
-**A stale `dock-flash` peer range is invisible here, and only bites npm.** The profile sets
+**A stale `dsh-flash` peer range is invisible here, and only bites npm.** The profile sets
 `autoInstallPeers: false`, pnpm merely *warns* about peer conflicts, and DSH's own pre-flight only
 inspects peers named `@deepseek-ai/dsh*`. So `dsh plugin add` installed a companion whose range
-excluded the installed dock-flash — while `npm install` refused it outright with `ERESOLVE`. Fix the
+excluded the installed `dsh-flash` — while `npm install` refused it outright with `ERESOLVE`. Fix the
 range for npm's sake, not because this path reports it.
 
 **`add` enables the plugin by itself.** It writes the package name into `dsh.profile.bundles` in the
-profile's `package.json` (all five declare `dsh.bundle.patch`), and no `cordis.patch.yml` row is needed
+profile's `package.json` (all of them declare `dsh.bundle.patch`), and no `cordis.patch.yml` row is needed
 for that. The **UI** path differs: its install passes `enabled: false`, so the row is added but not
 selected, and the dialog's **立即启用 / Enable now** button is a second, separate step.
 
@@ -375,7 +378,7 @@ zero hits; discovery is the community market.
 **The one command to put in front of users:**
 
 ```sh
-dsh plugin --profile <profile> add dock-flash dsh-flash-ctx-mon dsh-flash-mem-mon dsh-flash-net-mon dsh-flash-proxy
+dsh plugin --profile <profile> add dsh-flash dsh-flash-ctx-mon dsh-flash-mem-mon dsh-flash-net-mon dsh-flash-proxy
 ```
 
 ---
@@ -384,8 +387,9 @@ dsh plugin --profile <profile> add dock-flash dsh-flash-ctx-mon dsh-flash-mem-mo
 
 dsh-market reads its catalog from the curated **awesome-dsh-plugin** registry, so being installable is
 not the same as being listed. **Listing is per package** — a companion is invisible until it has its own
-entry, however discoverable `dock-flash` is. *(Checked 2026-10: `data/plugins/tcgbp__dock-flash.yml`
-exists in the registry; the four companions return 404.)*
+entry, however discoverable `dsh-flash` is. *(Checked 2026-10: `data/plugins/tcgbp__dock-flash.yml`,
+the adapter's own entry, exists in the registry; this core's `data/plugins/tcgbp__dsh-flash.yml` is a
+separate new listing, and the four companions return 404.)*
 
 **What the market actually installs is the npm name, not the Release tarball.** `dshmarket`'s
 `installTargetFor()` resolves an entry in this order:
@@ -396,8 +400,8 @@ exists in the registry; the four companions return 404.)*
 
 So npm is what decides which artifact users get, and the tarball URL below is the *fallback* for an
 entry with no npm mapping. This corrects an earlier claim in this file. Measured on the maintainer
-machine: the market's install log records `dock-flash@1.6.1`, i.e. the registry spec, while the entry
-also carried the tarball URL.
+machine: the market's install log records `dock-flash@1.6.1` (the adapter's npm name), i.e. the
+registry spec, while the entry also carried the tarball URL.
 
 **That is also why `repository` must be right in `package.json`.** The registry resolves an entry's npm
 mapping by matching the **published** package's own `repository` field against the listed repository —
@@ -405,9 +409,9 @@ so a missing one leaves the mapping absent (listing still works), and a *wrong* 
 somebody else's entry. The published metadata is what counts, which means fixing it later costs a
 release.
 
-`dock-flash`'s entry is written and validated here:
+This core's entry is written and validated here:
 
-**[docs/tcgbp__dock-flash.yml](tcgbp__dock-flash.yml)**
+**[docs/tcgbp__dsh-flash.yml](tcgbp__dsh-flash.yml)**
 
 The file's own comments record the rules the registry's validator enforces — the filename must equal
 `slugFor(url)`, only `url`/`name`/`category`/`description`/`tarball` are allowed, and `tarball` must be
