@@ -1,4 +1,4 @@
-# Changelog — dock-flash
+# Changelog — dsh-flash
 
 Release-by-release history: what changed and, where it matters, why.
 AGENTS.md holds the rules, contracts and current invariants; this file holds
@@ -8,7 +8,19 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.0.0
+
+**The Quick Control panel core becomes its own package.** `dsh-flash@1.0.0` is the panel half of the former single-package `dock-flash`, extracted at `dock-flash@2.3.0` so that the panel and the DSH Workbench integration can be installed independently. It owns the React Quick Control panel, the extensible `quickControl` switch registry other plugins register into via `ctx.provide('quickControl', …)`, the skin system, zh/en i18n, the alert surfaces, the standalone floating ⚡ trigger, and the whole host half (`src/index.ts` → `dist/index.js`). It publishes the `dockFlashPanel` service — `{ version: 1, Panel, ErrorBoundary, Header, icon, registry, i18n, host }` — which a dock host claims.
+
+The dock-base (Workbench) integration moved to the separate **`dock-flash` v3 adapter** package: it owns the sidebar panel, plugin card, activity-bar item, editor view and command, all registered through `ctx.workbench`, and it depends on this package. A dock-base user therefore installs `dock-flash@^3`, which pulls `dsh-flash` in; a user who wants only the standalone floating ⚡ installs `dsh-flash` alone.
+
+Existing `dock-flash` v2 users are unaffected: their `^2.x` range keeps them on the old single package, by design, so nothing breaks and no migration is needed. To move to the split they install `dock-flash@^3`.
+
+**Nothing migrates.** The profile patch **entry id** deliberately stays `dock-flash`, because the entry id *is* the settings namespace every already-published preference lives under. The settings section, the persisted `dock-flash:…` keys and the `/plugins/dock-flash/…` host routes are unchanged across the split.
+
 ## Versions
+
+> The entries below are the release history of the package this one was split out of: the original single-package plugin, published on npm as **`dock-flash`** (0.14.0 – 2.3.0). Its own `1.0.0` row is that package's first stable release and is **not** the `1.0.0` above.
 
 | Version | Change |
 |---|---|

@@ -1,4 +1,4 @@
-# dock-flash bundle layer — registers the HOST half into a profile.
+# dsh-flash bundle layer — registers the HOST half into a profile.
 #
 # The BROWSER half needs no row here: the module loader auto-discovers the
 # client bundle from package.json `exports["./client"]` + `dsh.client` and
@@ -6,6 +6,13 @@
 #
 # PITFALL: `name` is a PACKAGE NAME (resolved via the profile's node_modules),
 # NOT a relative path.
+#
+# WHY `id` IS NOT THE PACKAGE NAME: the entry id IS the settings namespace
+# (docs/refactor-plan-core-adapter-split.md §1.4, D1=M1) — `dock-flash` is the
+# id every published preference of this panel already lives under, so keeping
+# it means a profile that upgrades across the split migrates nothing. The
+# adapter (`dock-flash`) inserts this same row, because a plain dependency is
+# hoisted but only rows are composed.
 - insert:
     - id: dock-flash
-      name: dock-flash
+      name: dsh-flash

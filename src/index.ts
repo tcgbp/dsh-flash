@@ -318,11 +318,20 @@ async function readJsonBody(req: IncomingMessage, limit = 4096): Promise<any> {
 export function apply(ctx: Context, config: FlashConfig) {
 
   /**
-   * This plugin's own package name. A profile's `package.json` lists what is
-   * installed in it, so the profile whose dependencies name THIS plugin is the
-   * one we are running in — see `profileDirCandidates()`.
+   * The package names that mean "this plugin is installed in that profile". A
+   * profile's `package.json` lists what was installed in it, so the profile
+   * whose dependencies name us is the one we are running in — see
+   * `readProfilePackages()`.
+   *
+   * TWO names, because the panel and its dock integration are two packages
+   * after docs/refactor-plan-core-adapter-split.md: a user installs the ADAPTER
+   * (`dock-flash`), which pulls the core in as an ordinary dependency, so the
+   * profile's manifest names `dock-flash` and NOT `dsh-flash`. Matching only
+   * our own package name would decline to claim a profile we are plainly
+   * running in, and `readProfilePackages()` would fall back to directory order
+   * — the measured desktop/web bug the search order above exists to prevent.
    */
-  const PLUGIN_NAME = name
+  const PLUGIN_NAMES = ['dsh-flash', name]
 
   // ── Memory trend collector — extracted to dsh-flash-mem-mon ──────────
 
@@ -705,7 +714,9 @@ export function apply(ctx: Context, config: FlashConfig) {
           .filter((name: unknown): name is string => typeof name === 'string')
           .sort()
         active = active.filter((name: string) => !disabledByEntry.has(name))
-        const claimsUs = installed.some((name) => name === PLUGIN_NAME || name.endsWith('/' + PLUGIN_NAME))
+        const claimsUs = installed.some(
+          (pkg) => PLUGIN_NAMES.some((n) => pkg === n || pkg.endsWith('/' + n)),
+        )
         // The profile that lists this plugin is the one we run in; a profile
         // that merely looks like one is only kept in case nothing claims us.
         if (claimsUs) return { dir, installed, active, tried }
