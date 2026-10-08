@@ -10,6 +10,15 @@
 
 dock-base（工作台）集成是一个独立的、很薄的**适配器**包 —— `dock-flash` v3 —— 它依赖本包，并通过 `ctx.workbench` 注册面板、插件卡片、活动栏图标、编辑器视图与命令。
 
+```
+dsh-flash ──提供 "dockFlashPanel" 服务──▶ dock-flash ──ctx.workbench──▶ dock-base 工作台
+   本包：面板、开关注册表、                    适配器：5 处注册
+   皮肤系统、i18n、告警面、                    + 认领/释放握手
+   独立 ⚡、host 路由
+```
+
+依赖箭头是**单向**的：本包从不 import 也从不提及 `dock-flash`。它只发布服务，并在宿主认领后收起自己的 ⚡；认领它的是谁、它并不需要知道。这正是同一份构建既能独立运行、又能挂在 dock-base 下的原因，也是核心可以装在一个完全没有 dock-base 的 profile 上的原因。
+
 | 你想要什么 | 安装 | 你得到什么 |
 | --- | --- | --- |
 | 工作台（dock-base）集成 | `dock-flash@^3`（会把本包一并拉入），外加 `dock-base` | 侧边栏/浮窗面板、插件卡片、活动栏 ⚡、编辑器视图、`dock-flash:openQuickControl` 命令 |
@@ -17,9 +26,11 @@ dock-base（工作台）集成是一个独立的、很薄的**适配器**包 —
 
 ### 从 `dock-flash` v2 升级
 
-无需任何操作，也不会出问题。你的 `^2.x` 依赖范围会让你继续留在**旧的一体包**上，它仍以同样的名字存在 —— 这次拆分新增了一个大版本（`dock-flash@^3`），而不是替换 v2。要迁移到拆分后的版本，安装 `dock-flash@^3`；它依赖 `dsh-flash` 并会把它拉入。
+默认情况下不会有任何东西坏掉。你的 `^2.x` 依赖范围会让你继续留在**旧的一体包**上，它仍以同样的名字存在 —— 这次拆分新增了一个大版本（`dock-flash@^3`），而不是替换 v2。要迁移到拆分后的版本，安装 `dock-flash@^3`；它依赖本包并会把它拉入。
 
-> **设置命名空间不会改变。** profile patch 的**条目 id** 有意保留为 `dock-flash`，因为这个条目 id **就是**所有已发布用户偏好所在的设置命名空间。设置页区块、持久化的 `dock-flash:…` 键以及 `/plugins/dock-flash/…` 的宿主路由在拆分前后都保持不变，因此没有任何需要迁移的东西。
+> **有一处 profile 改动是必须的，而且很容易漏掉。** profile 的 `cordis.patch.yml` 里承载你面板设置的那条写着 `- id: dock-flash` / `name: dock-flash`。那个 `name:` 是**对目标行当前 specifier 的断言**，不是重命名。拆分之后，`id: dock-flash` 解析到的是**本核心行**，它的 specifier 是 `dsh-flash`，于是断言不匹配，DSH 打印 ``patch: name mismatch for "dock-flash" (expected "dsh-flash", got "dock-flash"), skipping``，整块 `config:` 被**丢弃** —— 你的面板顺序、皮肤、触发按钮位置与尺寸会静默回落到默认值。把那条的 `name: dock-flash` 改成 `name: dsh-flash`，`id: dock-flash` 保持不动。
+
+> **设置命名空间本身不会改变。** profile patch 的**条目 id** 有意保留为 `dock-flash`，因为这个条目 id **就是**所有已发布用户偏好所在的设置命名空间。设置页区块、持久化的 `dock-flash:…` 键以及 `/plugins/dock-flash/…` 的宿主路由在拆分前后都保持不变 —— 上面那处 `name:` 修正是升级唯一需要的改动。
 
 ## 运行模式
 

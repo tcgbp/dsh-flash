@@ -10,6 +10,15 @@ This package is the **panel** and nothing else. It owns the React panel, the `qu
 
 The dock-base (Workbench) integration is a separate, thin **adapter** package — `dock-flash` v3 — that depends on this one and registers the panel, the plugin card, the activity-bar item, the editor view and the command through `ctx.workbench`.
 
+```
+dsh-flash ──provides "dockFlashPanel"──▶ dock-flash ──ctx.workbench──▶ dock-base Workbench
+   this package: panel, switch              the adapter: 5 registrations
+   registry, skins, i18n, alerts,           + the claim/release handshake
+   standalone ⚡, host routes
+```
+
+The dependency arrow points **one way**: this package never imports or names `dock-flash`. It publishes the service and stands its own ⚡ down when a host claims it; whoever claims it is a stranger it does not have to know about. That is what lets the panel work both standalone and under dock-base from one build, and why the core can be installed on a profile that has no dock-base at all.
+
 | What you want | Install | You get |
 | --- | --- | --- |
 | Workbench (dock-base) integration | `dock-flash@^3`, which pulls this package in — plus `dock-base` | Sidebar/floating panel, plugin card, activity-bar ⚡, editor view, the `dock-flash:openQuickControl` command |
@@ -17,9 +26,11 @@ The dock-base (Workbench) integration is a separate, thin **adapter** package �
 
 ### Upgrading from `dock-flash` v2
 
-Nothing is required, and nothing breaks. Your `^2.x` dependency range keeps you on the **old single package**, which still exists under the same name — the split added a new major (`dock-flash@^3`) rather than replacing v2. To move to the split, install `dock-flash@^3`; it depends on `dsh-flash` and pulls it in.
+Nothing breaks by default. Your `^2.x` dependency range keeps you on the **old single package**, which still exists under the same name — the split added a new major (`dock-flash@^3`) rather than replacing v2. To move to the split, install `dock-flash@^3`; it depends on this package and pulls it in.
 
-> **The settings namespace does not change.** The profile patch **entry id** deliberately stays `dock-flash`, because that entry id *is* the settings namespace every already-published user preference lives under. The settings section, the persisted `dock-flash:…` keys and the `/plugins/dock-flash/…` host routes are all unchanged across the split, so there is nothing to migrate.
+> **One profile edit is required, and it is easy to miss.** In the profile's `cordis.patch.yml` the entry that carries your panel settings reads `- id: dock-flash` / `name: dock-flash`. That `name:` is an *assertion* about the target row's current specifier, not a rename. After the split, `id: dock-flash` resolves to **this** core row, whose specifier is `dsh-flash`, so the assertion mismatches, DSH prints ``patch: name mismatch for "dock-flash" (expected "dsh-flash", got "dock-flash"), skipping`` and the whole `config:` block is **dropped** — silently reverting your panel order, your skin and your trigger position/size. Change that entry's `name: dock-flash` to `name: dsh-flash` and keep `id: dock-flash`.
+
+> **The settings namespace itself does not change.** The profile patch **entry id** deliberately stays `dock-flash`, because that entry id *is* the settings namespace every already-published user preference lives under. The settings section, the persisted `dock-flash:…` keys and the `/plugins/dock-flash/…` host routes are all unchanged across the split — the `name:` fix above is the only edit the upgrade needs.
 
 ## Modes
 
