@@ -6,7 +6,7 @@
 
 ## 0. 一句话状态
 
-core/adapter **反转拆分已完成代码与仓库层**：核心进 `tcgbp/dsh-flash`（v1.0.0），本仓库瘦身为 dock 适配器（dock-flash v3.0.0）。两个核心仓库已 `tag`、已推送 Gitee（`master` 与 `origin/master` 同 commit），四同伴 peer 已改指 `dsh-flash`。**所有待办都压在发布门之后**（npm、tag→GitHub、市场 PR），均需维护者确认。
+core/adapter **反转拆分已完成并全部上线**：核心进 `tcgbp/dsh-flash`（v1.0.0），本仓库瘦身为 dock 适配器（dock-flash v3.0.0）。两核心仓库已 tag、推送 Gitee（`master` 与 `origin/master` 同 commit），四同伴 peer 已改指 `dsh-flash`。**npm 已全部发布至 latest**（2026-10 实测：dsh-flash 1.0.0 / dock-flash 3.0.0 / ctx 0.1.8 / mem 0.1.5 / net 0.2.0 / proxy 0.1.5，均与本地 package.json 一致）。后续只有清理项与依赖修订，见 §5。
 
 ## 1. 目标与已定方案（D1–D5，全部定案，勿重新推导）
 
@@ -51,11 +51,11 @@ core/adapter **反转拆分已完成代码与仓库层**：核心进 `tcgbp/dsh-
 - [x] 核心侧 `cordis.patch.yml` 保留 `id: dock-flash`（D1=M1）
 - [x] 适配器 `dependencies: { "dsh-flash": "^1.0.0" }`、peer `dock-base` 不可选、`dsh.client.inject` 加 `dsh-flash`、patch 插两行（见 §4）
 - [x] 两包各自 `check` / `pack --dry-run` 通过，**互不包含对方代码**
-- [ ] **发布顺序**（gate，等维护者）：`dsh-flash@1.0.0 --tag next` → `dock-flash@3.0.0 --tag next` → 验证 → `dist-tag` 提升 latest
+- [x] **发布完成**：`dsh-flash@1.0.0` → `dock-flash@3.0.0` 均已 `--tag next` 发布并提升 latest（2026-10 实测 npm）
 
 **Phase 3（同伴重指）**
 - [x] 四同伴 peer 由 `dock-flash` 改指 `dsh-flash`（**代码已改**，经实测 peer 已是 `dsh-flash ">=1.0.0-0 <2.0.0-0"`）
-- [ ] 各自发布 + tag + Release + 市场条目（gate，等维护者）
+- [x] 各自发布完成（2026-10 实测 npm：ctx 0.1.8 / mem 0.1.5 / net 0.2.0 / proxy 0.1.5 全部 latest）
 
 **Phase 4（身份整理）**
 - [x] 两个仓库 README（中英）架构图、"`^2` 用户怎么办"升级指引
@@ -80,18 +80,16 @@ core/adapter **反转拆分已完成代码与仓库层**：核心进 `tcgbp/dsh-
       name: dock-flash
 ```
 
-## 5. 剩余待办（全部在发布门之后，需维护者批准）
+## 5. 剩余待办（发布已全部完成；以下为清理/修订项，部分需维护者处理）
 
-1. **核心/适配器发布**：`dsh-flash@1.0.0 --tag next` → `dock-flash@3.0.0 --tag next` → 真机验证 → 各 `dist-tag` 提升 latest。npm 不可 unpublish（GAT 403，只能 `deprecate`）。
-2. **同伴发布**：四仓库各自 `npm publish --tag next` + `dist-tag` + GitHub Release + 市场条目。
-3. **市场条目 PR**：核心 `tcgbp__dsh-flash.yml` 新增、适配器描述刷新，都需 registry PR（用户 GitHub 账号）。
-4. **npm `0.0.0-stage` 占位版本清理**：需用户在 npm 网页端操作（GAT 跑不了这个）。
-5. **真实界面复验**：dock-base profile 硬刷新后确认面板出现、隐藏↔恢复循环、失焦关闭开关联动（agent 无浏览器截图通道，`/plugins/...` 只能 curl 比对内容，界面渲染需人眼）。
+1. **依赖修订待随下次发布**（已改本地、未 bump、未发布）：三 companion（ctx/mem/net）已删除 `dock-base` peer + inject hint（2026-10 提交 411b863 / 8d1105e / 999c235）。这是**已发布包的依赖元数据变更**，按纪律需 bump patch 后发布——等下次统一发版时带上。
+2. **市场条目 PR**：核心 `tcgbp__dsh-flash.yml` 新增、适配器描述刷新，都需 registry PR（用户 GitHub 账号）。
+3. **npm `0.0.0-stage` 占位版本清理**：需用户在 npm 网页端操作（GAT 跑不了这个）。
+4. **真实界面复验**：dock-base profile 硬刷新后确认面板出现、隐藏↔恢复循环、失焦关闭开关联动（agent 无浏览器截图通道，`/plugins/...` 只能 curl 比对内容，界面渲染需人眼）。
 
 ## 6. checked-in 的改进方向（待确认后处理，非本次改动）
 
-- **companion peer 里 `dock-base` 疑似残留**：ctx/mem/net-mon 的 peerDependencies 仍带 `dock-base`，但新架构下它们只消费 dsh-flash 的 `quickControl`/`dockFlashAlerts`，不必然依赖 dock-base。改指 peer 时复核是否该去掉（注意不要破坏装载，见 §4 `autoInstallPeers: false`）。
-- **版本口径不一致**：`dsh-flash-net-mon` 已是 0.2.0，但 plan Phase 3 记录 0.1.4；ctx-mon 0.1.8 vs 计划 0.1.7。版本推进与计划文档需对齐一次。
+- **version 口径（部分处理）**：四同伴 `dsh-flash` peer 范围已统一为 `>=1.0.0-0 <2.0.0-0`；companion 版本以 npm latest 为准（见 §2/§3），plan 文档 §7 Phase 3 里的目标版本数字是拆分当时的预测，非当前实际——已不更新 plan 历史，只看本交接 + npm 实测。
 - **companion 无 CHANGELOG**：四个同伴都没有 `CHANGELOG.md`，版本记录只在 git tag。可考虑补齐以对齐 dsh-flash 的发布纪律。
 
 ## 7. 环境与工具配方
