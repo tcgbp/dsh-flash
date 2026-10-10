@@ -193,13 +193,39 @@ setValue: (v) => { myState = v; sw._notifyChange?.('old', 'new') }
 
 ## 国际化标签
 
-使用函数形式的 `label` 以支持实时语言切换：
+`label` 在每次渲染时求值，所以**函数形式**会在用户切换 UI 语言时重新渲染，普通字符串不会。
+凡用户可见的文案，一律写成函数。
+
+语言要从 DSH 自己的 `locale` 服务读取，它才是这件事的权威——字典表、持久化偏好、`<html lang>`
+都在它手里：
 
 ```js
-label: () => document.documentElement.lang === 'zh' ? '我的开关' : 'My Switch'
+// ✅ 正确 — DSH 的 locale 服务，唯一权威
+const locale = ctx.get('locale')
+locale.register('my-plugin', {
+  zh: { notifications: '🔔 通知' },
+  en: { notifications: '🔔 Notifications' },
+})
+const t = locale.bind('my-plugin')
+
+// …开关定义里：
+label: () => t('notifications')
 ```
 
-静态字符串标签在用户切换 UI 语言时不会更新。
+这个服务有两处行为值得先知道：`register()` 会**拒绝**同一命名空间下重复注册的 locale，所以只注册
+一次，并保存它返回的 disposer；`setLocale()` 会**拒绝**它从未见过的 id，所以可用语言要读
+`getSnapshot().locales`，不要假设就是 `zh` 和 `en`。
+
+如果不想依赖 locale 包，面板把自己的代理挂在 `dockFlashPanel` 服务的 `i18n: { t, L }` 上，
+另有 `t.getLocale()` 和 `t.onLocaleChange(fn)`——和面板自己用的是同一套文案。有自有字典时优先用服务。
+
+```js
+// ❌ 错误 — 读一个面板自己也不再读的 DOM 属性，且完全绕过了持久化偏好
+label: () => document.documentElement.lang === 'zh' ? '我的开关' : 'My Switch'
+
+// ❌ 错误 — 注册时就固化，切换语言后静默停留在旧语言
+label: 'My Switch'
+```
 
 ---
 
@@ -256,6 +282,23 @@ window.__ModuleLoader__.load({
       var notificationsEnabled = true
       var refreshInterval = 30
 
+      // ── i18n：把我们的字典交给 DSH 的 locale 服务 ──
+      // 该服务是可选的，所以用 ctx.get() 读取并保留回退。register() 返回 disposer，
+      // 订阅随 fiber 一起释放。
+      var t = function (key) { return key }
+      var locale = ctx.get('locale')
+      if (locale) {
+        ctx.effect(() => {
+          var dispose = locale.register('my-plugin', {
+            zh: { notifications: '🔔 通知', refreshInterval: '🔄 刷新间隔' },
+            en: { notifications: '🔔 Notifications', refreshInterval: '🔄 Refresh Interval' },
+          })
+          return dispose
+        }, 'my-plugin: locale dictionaries')
+        var bound = locale.bind('my-plugin')
+        t = function (key) { return bound(key) }
+      }
+
       // ── dsh-flash 可用时注册开关 ──
       var registered = false
 
@@ -267,7 +310,7 @@ window.__ModuleLoader__.load({
         ctx.effect(() => {
           var dispose = registry.registerSwitch({
             id: 'my-plugin:notifications',
-            label: () => document.documentElement.lang === 'zh' ? '🔔 通知' : '🔔 Notifications',
+            label: () => t('notifications'),
             icon: '🔔',
             type: 'toggle',
             order: 100,
@@ -281,7 +324,7 @@ window.__ModuleLoader__.load({
         ctx.effect(() => {
           var dispose = registry.registerSwitch({
             id: 'my-plugin:refresh-interval',
-            label: () => document.documentElement.lang === 'zh' ? '🔄 刷新间隔' : '🔄 Refresh Interval',
+            label: () => t('refreshInterval'),
             icon: '🔄',
             type: 'slider',
             order: 110,

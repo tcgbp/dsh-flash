@@ -1578,6 +1578,77 @@ data source visible at a glance.
 
 ---
 
+### i18n: why the `locale` service replaced the `MutationObserver`
+
+Until the migration, `t()` decided the language itself: `detectLocaleTag()` read
+`document.documentElement.lang`, `resolveLocaleKey()` mapped the tag to `zh`/`en`, a module-level
+`_currentLocaleKey` cached the answer, and a `MutationObserver` over `<html lang>` kept it current.
+`t()` now proxies DSH's official framework — the client Cordis service `locale`, published by
+`@deepseek-ai/dsh-client-locale` — through `register(NS, { zh, en })`, `bind(NS)`,
+`getSnapshot().active` and `subscribe()`. `bindLocaleService()` / `releaseLocaleBinding()` are the
+whole seam; nothing else reads the service.
+
+**Why the observer was wrong, not just inelegant.** `<html lang>` is an attribute the official
+runtime OWNS — it is what writes `zh → 'zh-CN'`. Watching it made dock-flash a second authority that
+derives a preference from someone else's DOM, and the derivation is lossy in both directions: a
+switch that has not reached the attribute yet is invisible (the observer is always one step behind
+the service that will eventually write it), and a value written for another reason — a page shell
+default, another plugin's experiment — fires a language change nobody chose. Reading the service
+removes both failure modes at once, because there is then exactly one thing to be behind.
+
+**Why the namespace claim lives on the plugin fiber.** `register(ns, dicts)` **throws** when a locale
+is already registered under that namespace, so claiming is a one-shot act per service instance. The
+trigger's mount is not: the slots injection and the `claim()`/`release()` cycle remount the standalone
+surface repeatedly within one session. A per-remount claim therefore hits the duplicate guard on the
+second mount — and the visible symptom is not an error but the `catch` in `bindLocaleService()`
+logging a warning and keeping the built-in tables, i.e. the panel quietly stops following the global
+setting. So there is exactly one claim and one release, both owned by the plugin's own
+`ctx.effect`, and every remount just re-reads the existing binding.
+
+**Why `bindLocaleService()` is called from two places, and neither is a second registration.**
+`ctx.get('locale')` may legitimately find nothing at `apply()` time — module order can hand us the
+core before the locale plugin — so the eager call handles "already provided" and
+`ctx.inject(['locale'], …)` handles "arrives later". Both funnel into the same function, which
+short-circuits on `_localeSource.service === svc`. A transient read that finds nothing must NOT tear
+down a working registration either, which is why the no-service branch returns early unless the
+current source is already the fallback: dropping the claim on a failed lookup would be a
+self-inflicted version of the bug above.
+
+**Why `t()` falls through to the built-in tables when the official lookup returns the key.** The
+service resolves `ns → common → key`, so "the key came back unchanged" means dock-flash has no such
+string. The built-in `LOCALES` table is consulted in that case rather than displaying a raw key —
+which also preserves the pre-migration behavior that a zh-only key renders English under `en`. A
+refused `register()` (a namespace collision with another build of this plugin) degrades the same way:
+warn once, keep rendering.
+
+**Why the fallback mirrors `detectBrowserLocale()`.** With no locale plugin installed there is no
+authority to consult, but the panel still has to pick a language. `_localeSource = { id: 'fallback' }`
+walks `navigator.languages` then `navigator.language` and matches the primary subtag — the same rule
+the official runtime applies before the Host answers — so dock-flash and DSH itself agree about what
+"no explicit choice" means. `check:overlay` section 29 asserts both halves: with the service present
+`t()` follows the SERVICE and not the browser (`setLocale('zh')` flips `t('title')` to `快捷控制` even
+in an `en` sandbox), and with no service at all the panel renders `Quick Control` and the language row
+still switches to Chinese through the fallback.
+
+**What stayed frozen.** `t`, `L`, `i18nOptions`, and the `t.getLocale` / `t.setLocale` /
+`t.onLocaleChange` trio are the published shape of `dockFlashPanel.i18n`, consumed by the separate
+`dock-flash` adapter (which patches its sidebar title through `onLocaleChange`) and by ~45 imperative
+call sites that read the dictionary outside a React render. That is why the migration replaced the
+authority behind `t()` rather than the surface: the panel's React subscription
+(`useState(() => t.getLocale())` + `t.onLocaleChange`) is unchanged, and `dock-flash:language` became a
+pure proxy — `getValue: () => t.getLocale()`, `setValue: (v) => t.setLocale(v)` — with no local mirror
+to drift (Critical Rule 7).
+
+**Harness.** `check:overlay` section 29 supplies a `locale` service that honours the real contract,
+including both throws, and asserts: the namespace is registered with both dictionaries (>80 keys each,
+and the `i18n` keys are exactly `L` and `t`); a service notification drives `t.onLocaleChange` and
+unsubscribing goes quiet; `row.setValue('en')` moves the service and touches nothing else — the
+options are exactly `["zh","en"]`, and `row.setValue('fr')` neither throws nor changes anything;
+disposing the fiber unregisters the namespace and drops the listener count to 0, and a re-`apply()`
+then re-registers without throwing.
+
+---
+
 ## Common pitfalls, in full
 
 `AGENTS.md` keeps a short index of these; the full table lives here because it had grown to

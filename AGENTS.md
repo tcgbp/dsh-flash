@@ -730,10 +730,18 @@ never `<pkg>/client` — see "Mode Detection" above for why.
 
 ## i18n Conventions
 
-- Translation function `t(key)` returns Chinese or English based on `document.documentElement.lang`
-- `MutationObserver` watches `<html lang>` for real-time switching
-- Functional labels (`label: () => t('xxx')`) ensure dynamic refresh on language change
-- Static string labels won't update on language change — always use functions for user-visible text
+**DSH's `locale` service is the only language authority**; `t()` proxies `register('dock-flash', { zh, en })`
++ `getSnapshot().active` + `subscribe`, read via `ctx.get('locale')`. Labels must be `() => t('xxx')` to
+refresh on a language change; a static string does not.
+
+- **Never touch `document.documentElement.lang`, no module-level current-language variable** — a second authority.
+- **Claim the namespace once on the plugin fiber, release on dispose** (`bindLocaleService()` /
+  `releaseLocaleBinding()`) — `register()` **throws** on a repeat locale. With no locale plugin the built-in
+  tables (`navigator.languages`) still render and switch.
+- **`setLocale()` throws on an unknown id** — check `getSnapshot().locales` first; guard the result with
+  `typeof result.catch === 'function'` (Critical Rule 13).
+- **`i18n: { t, L }` and `t.getLocale`/`setLocale`/`onLocaleChange` are frozen** — the `dock-flash` adapter
+  patches its sidebar title through the last one.
 
 ---
 
