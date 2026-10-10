@@ -154,3 +154,58 @@
 3. **生命周期独立**：禁用 dsh-alerts，面板、代理、审计仍各自工作；禁用 dsh-net-audit，全局 `fetch` 不再被包装。
 4. **无跨包 HTTP 依赖**：不存在「D 调 B 的 `/proxy-status`」这类耦合（K6 消除）。
 5. **默认攻击面收敛**：新装用户默认只启用 A；C 的全局审计默认 OFF。
+
+---
+
+## 6. A 内部：皮肤子系统的拆分状态（2026-10）
+
+皮肤系统一直挂在 A 名下，是 A 里最大的一块。本轮把它从 `apply()` 里提出来，并给两个「看起来该合并」的候选下了结论。
+
+### 6.1 已完成：`createSkinSystem(ctx, registry)`
+
+皮肤代码原先内联在 `apply()` 中，占约 2460 行，夹在两个互不相关的 `registry` 消费者之间。现在是 `createQuickControlRegistry()` 旁边的一个工厂（2479 行），`apply()` 末尾一次性解构出它真正对外的 **8 个符号**：
+
+`_registerSkinSwitch` · `_unregisterSkinSwitch` · `_refreshPluginEntries` · `_scanInstalledSkins` · `_skinNotControllable` · `_skinTrace` · `_switchSkinBundle` · `_applySkin`
+
+其余约 60 个声明变成它的私有实现。`apply()` 从 3689 行降到 1234 行。
+
+**是工厂，不是模块**：客户端半边没有构建步骤（AGENTS.md），且这块代码仍从工厂闭包读 `L`（标签）、`savePrefs`/`_prefCtx`/`_hostPrefs`（偏好桥）、`CLIENT_VERSION`（启动 trace）。所以参数只有 `ctx` 和 `registry` —— 那是 `apply()` 真正拥有的东西。`_hostPrefs` 会被整体重新赋值，因此必须以闭包活读，不能按值传参。
+
+拆之前测过：区域内 44 个函数里 36 个的「外部依赖」其实是**区域内部互相引用**，整块搬走即免费；剩下的 8 个符号也从不被重新赋值，解构安全。
+
+拆之后逐条验证（不是「看起来对」）：
+
+| 验证 | 结果 |
+|---|---|
+| 搬移块 vs 原块 | 2465 行逐行相等，仅每非空行少 2 空格 → **纯搬移，零内容改动** |
+| 未解析标识符集合（新旧对拍） | 14 = 14，两侧差集为空 → 没搬丢也没新增引用 |
+| TDZ 风险（8 个符号由提升式函数声明变为末尾 `const` 解构） | 位置在解构之前的 12 处引用**全部**位于 `.then()` 回调内 → 同步求值碰不到未初始化绑定 |
+| `check:overlay` | 304 PASS / 0 FAIL，exit 0，含皮肤扫描 section |
+
+### 6.2 判定为不需要：把 boot sweep 一起搬走
+
+`enforceBootSkin()` 留在 `apply()` 里，比皮肤工厂**早**定义却引用其符号。曾担心这是 TDZ；实测证伪：它只从 `loadHostPreferences(ctx).then(...)` 和 `setTimeout(..., 1500)` 里被调用，两者都在整个同步 `apply()` 体求值完之后才跑。所以 A2 不是待办，是**无需动作**。
+
+### 6.3 判定为不做：合并两个 profile 读取器
+
+`_fetchProfilePackages()`（皮肤，`/plugins/dock-flash/profile-packages`）和 `_fetchCompanionProfile()`（伴随插件）看着是同一件事的两份拷贝，**不合并**。共享面只有约 6 行 fetch 样板，而失败语义双向都不兼容：
+
+| 维度 | `_fetchProfilePackages` | `_fetchCompanionProfile` |
+|---|---|---|
+| 失败值 | `{ installed: [], active: [], error, at }` | `{ installed: null, active: null, error }` |
+| 是否缓存失败 | 仅在 `installed.length > 0 \|\| active.length > 0` 时缓存 | 不缓存 |
+| 冷却重试 | 有，`_profilePackagesNextTry = Date.now() + 5000` | 无，靠 `_companionProfileInFlight` 去重 |
+| 消费者读法 | 多处**直接读 `.installed` 并在 null 时抛**（11686、12412、12416、12499、12753），只有 `_skinOffInProfile` 做了 null 守卫 | `!!(profile && Array.isArray(profile.installed))` 判「未知」，把它换成 `[]` 会把**未知静默重分类成「未安装」** |
+
+任一向的合并都要改另一向的失败语义，而这两处语义各自是防 bug 的：皮肤侧靠「抛」暴露读不到的清单，伴随侧靠「null ≠ 空」区分未知与空。代码里 5180-5184 的注释已声明这个分裂是有意的。
+
+### 6.4 记录但暂缓：抽成独立包 `dsh-flash-skin`（Option B）
+
+不做，理由记在这里以免重复讨论：
+
+- 跨包的 `cluster` 合并从未被验证过；`activeSkin` 会升级成**跨包契约**（新增偏好需要 `SettingsSchema` + 映射 + 读 + 写四件套，跨包后每一环都要两个包同步）。
+- `check:overlay` 的 5 个 section 会失去被测对象。
+- `dsh-flash` 的 peer range 是硬 **npm `ERESOLVE`** 门槛，需要显式 prerelease 分支。
+- 收益被高估：B 只能移走约 230 行宿主代码而非约 430 行，因为 `readProfilePackages` / `profileDirCandidates` / `profileContext` / `launchEnvironment` / `readLaunchEnv`（约 200 行）必须留在 core。
+- B 唯一的独有价值是缓解 `AGENTS.md` 的 65536 字节预算 —— 而那是文档预算问题，不该用架构变更去解。
+
