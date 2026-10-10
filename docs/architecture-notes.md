@@ -36,8 +36,8 @@ is no longer available.
 |---|---|
 | `_refreshMarketThemes()` → `GET /dsh-market/installed` | `_refreshPluginEntries()` → `_fetchPluginEntries()` → `listPlugins()` + `listBundles()` |
 | `_marketThemeExtras(seenIds)` | `_pluginManagerSkinExtras(seenIds)` |
-| `_isMarketLiveTheme(id)` | `_isPluginManagerLiveTheme(id)` |
-| `_invalidateMarketThemes()` | `_invalidatePluginEntries()` |
+| `_isMarketLiveTheme(id)` | Deleted — no replacement. "which theme is live" is answered by the stored preference plus the physical marks (`_skinInEffect()`), not by a persisted per-theme state row |
+| `_invalidateMarketThemes()` | Deleted — also left a dead `_invalidatePluginEntries()` behind from this same migration, removed with it |
 | `_activateThemeViaMarket(name, gen)` → `POST /dsh-market/use-skin` | `_activateThemeViaPluginManager(name, gen)` → `setPluginEnabled(entryId, bool)` |
 | `_skinAllowed(id)` checked market registry (`_isMarketThemePackage`) | `_skinAllowed(id)` is pure `_skinHint.test(id) && !_skinExclude.test(id)` |
 | `_marketApiBase`, `_marketThemes`, `_marketFetchInFlight`, `_marketAvailable()` | Deleted — no HTTP dependency on dsh-market |
@@ -887,8 +887,9 @@ press wrote to a layer that only boot reads" are indistinguishable from the outs
 ### The dropdown said 默认 while the theme was still painted
 
 > **Note (v1.5.x):** The market-specific details below (`/dsh-market/installed`, `live: []`) describe
-> the historical state that was replaced by `_isPluginManagerLiveTheme()` and the plugin manager's entry
-> list. The rule — detect live marks and reload even when bookkeeping says "off" — is unchanged.
+> the historical state that was replaced by the plugin manager's entry list (`_fetchPluginEntries()`)
+> plus the stored preference. The rule — detect live marks and reload even when bookkeeping says
+> "off" — is unchanged.
 
 The third round on this feature came from a report that names the failure exactly: *"after selecting
 dsh-dream-skin you cannot go back to default — because it shows default selected instead of Dream"*. The
@@ -1489,8 +1490,8 @@ wrong in its own way, which is why the rule is stated as agreement rather than a
 | `byBundle()` | resolved `undefined`, which reads as "nothing changed" |
 | `byBundlePath()`'s guard | inverted for ON: `enabled: false` means NOT in the roster, which is a real write |
 
-`_isMarketLiveTheme()` gates nothing here — nothing ever assigns `_marketThemes`, so it is always
-`false`. See [skin-system.md](skin-system.md).
+`_isMarketLiveTheme()` gated nothing there — nothing ever assigned `_marketThemes`, so it was always
+`false`. Both are deleted now; see [skin-system.md](skin-system.md).
 
 ### 默认 stopped in the `!targetRow` fallback and never reached the switch-off branch
 

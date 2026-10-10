@@ -391,28 +391,47 @@ scheduled).
 
 ---
 
-## The market integration is inert — do not "fix" a bug by reasoning about it
+## The market integration is GONE — and why its dead predicates mattered
 
-**Nothing in this tree ever calls dsh-market.** The evidence, all five parts measurable from a
-checkout:
+**Nothing in this tree calls dsh-market, and the leftover scaffolding has now been deleted.** What
+remains is the history, because it is the reason the rules below are stated the way they are.
 
-- `const _marketApiBase = '/dsh-market'` is declared and **never used** — there is no
+The evidence, all measurable from the pre-removal checkout:
+
+- `const _marketApiBase = '/dsh-market'` was declared and **never used** — there was no
   `fetch(_marketApiBase + …)` anywhere.
 - The only `fetch()` targets in the client are `/plugins/dock-flash/*`
   (`profile-packages`, `set-plugin-entry`, `proxy-status`, `test-connection`, `clear-alerts`).
 - The loader that used `/dsh-market/installed` was replaced by `_pluginManagerSkinExtras()`.
 - The activation path that used `POST /dsh-market/use-skin` was replaced by
   `_activateThemeViaPluginManager()`.
-- `let _marketThemes = null` is the ONLY assignment to it. Nothing populates it, so
-  `_isMarketLiveTheme()` returns `false` unconditionally (it opens with
+- `let _marketThemes = null` was the ONLY assignment to it. Nothing populated it, so
+  `_isMarketLiveTheme()` returned `false` unconditionally (it opened with
   `if (!_marketThemes || …) return false`).
 
-**Consequence: the three `_isMarketLiveTheme()` call sites are dead branches.** Each is shaped
+**Consequence, and this is the durable lesson: a permanently-false predicate reads exactly like a
+guard.** `_isMarketLiveTheme()` had three call sites, each shaped
 `if (!bootMode && _isMarketLiveTheme(skin.id)) { …write the bundle roster… }`, so the roster write
-they guard can never run. That is why the OFF direction had to reach `dsh.profile.bundles` by another
-route (see the next section) — and it is why "the market still says it is live" is not an explanation
-for any symptom in this build, however plausible it sounds. The market can be installed and enabled
-(its own plugin does load); it simply is not what this feature reads or writes.
+behind it could never run — while every comment around it reasoned about "the market still says this
+theme is live" as if that were a live condition. That is why the OFF direction had to reach
+`dsh.profile.bundles` by another route (see the next section), and why "the market still says it is
+live" was never a valid explanation for any symptom, however plausible it sounded.
+
+The symbols are deleted: `_marketApiBase`, `_marketThemes`, `_marketFetchInFlight`,
+`_marketAvailable()`, `_isMarketLiveTheme()`, `_invalidateMarketThemes()`, plus the dead
+`_hostSkin` / `_hostExplicitDefault` pair and the `_marketThemes` branch of `_getActiveSkinId()`.
+Deleting them is behaviour-preserving in both directions, which is what made it safe: every reader sat
+inside `if (_marketThemes …)` or `if (_isMarketLiveTheme(…))`, and the two `state === 'disabled'`
+filters that read it as a NEGATIVE likewise never filtered.
+
+**One asymmetry survives, deliberately, and is now written down instead of hidden behind a dead
+gate.** In `_applySkin()` the 默认 branch switches a controllable CSS skin off in the roster
+UNCONDITIONALLY (that fix is measured in the next section), while the "select another skin" branch
+that deactivates the OTHERS does `_deactivateCssSkin(skin)` with **no** roster write — its push had
+been behind the same dead gate, so removing the gate kept the shipped behaviour rather than silently
+changing it. The same argument that justified the 默认 fix (a skin left in `dsh.profile.bundles`
+comes back on the next boot) applies here too; making it unconditional is a real behaviour change and
+needs its own measured change, not a dead-code commit.
 
 `_skinAllowed(id)` matches: it is `_skinHint.test(id) && !_skinExclude.test(id)` — a pure name
 predicate with no registry lookup.
@@ -529,9 +548,10 @@ MEASURED, with Dream as the stored skin and `claude-style-skin` also active:
 
 The page wore both, on every boot, and Claude's 52 CSS rules are all gated on that body attribute —
 so its styles polluted whatever else was selected ("Claude 不会被停用,它的样式会污染别的皮肤"). The
-press path does not cover it either: `_activateThemeViaPluginManager()` writes a CSS skin's bundle
-only when the market still calls it `live` (`_isMarketLiveTheme`), which — see the first section — is
-never true in this tree.
+press path does not cover it either: `_activateThemeViaPluginManager()` wrote a CSS skin's bundle
+only when the market still called it `live` (`_isMarketLiveTheme`), which — see the first section — was
+never true in this tree. That gate is deleted now, so this sentence is history: the stray-skin sweep
+below is what handles the shape, and it does so unconditionally.
 
 The `else` branch now switches the strays off **as plugins**, which is what keeps them from loading
 at all next time:
