@@ -639,6 +639,10 @@ console.error = (...a) => { errors.push(a.map(String).join(' ')); origError(...a
 // real: `QuickControlPanel` reads its registry back through
 // `ctx.get('quickControl')`, and without it `getSwitches()` is empty and the
 // panel renders nothing to assert on.
+//
+// NOTE there is no `locale` service in any sandbox here. That is the degradation
+// path under test: `t()` must still resolve every string from the built-in zh/en
+// tables, from the browser language, with no locale plugin composed at all.
 const provided = {}
 const ctx = {
   get: (name) => provided[name],      // no workbench → standalone mode
@@ -650,7 +654,15 @@ const ctx = {
   // Layout switch (trigger-position, close-on-blur, trigger-size) is registered
   // inside it — so leaving it uncalled would also leave section 10 testing a
   // switch that was never registered.
-  inject: (deps, cb) => { injectCalls.push(deps); if (typeof cb === 'function') slotsCallback = cb; return () => {} },
+  //
+  // Gated on the DEPS, not on "last one wins": apply() now registers two
+  // watchers (`locale`, then `slots`), and storing both into one variable means
+  // whichever was registered last silently decides what these sections can see.
+  inject: (deps, cb) => {
+    injectCalls.push(deps)
+    if (typeof cb === 'function' && deps.indexOf('slots') !== -1) slotsCallback = cb
+    return () => {}
+  },
   logger: { info() {}, warn() {}, error() {} },
   // The OFFICIAL plugin switch.  `dsh-client-ui-plugin-manager` does exactly this
   // through `ctx.remote.pluginManager`, and it is the only lever that can switch
@@ -695,7 +707,14 @@ check('the plugin published its quickControl registry', !!registry && typeof reg
 
 check('apply() reported no [dock-flash] failure', errors.length === 0, errors.join(' | ') || 'none')
 check('apply() reached ctx.inject([\'slots\']) — the overlay did not throw past it',
-  injectCalls.length === 1 && injectCalls[0][0] === 'slots', JSON.stringify(injectCalls))
+  injectCalls.length === 2 && injectCalls[0][0] === 'locale' && injectCalls[1][0] === 'slots',
+  JSON.stringify(injectCalls))
+// Two watchers, and the ORDER is the contract: `locale` is claimed near the top of
+// apply(), before anything that renders a label, so the first paint resolves
+// through the official registry rather than the fallback; `slots` is registered
+// afterwards, because the overlay trigger is mounted ahead of it and must not
+// queue behind a service it does not need. A third entry here means apply() grew
+// a new service dependency nobody reviewed.
 
 const btn = sandbox.document.getElementById('dock-flash-overlay-trigger')
 check('overlay button EXISTS in the document', !!btn)
@@ -1037,7 +1056,7 @@ console.log('\n=== 11. a host-stored size reaches the button ===')
     provide: (name, value) => { provided2[name] = value },
     on: () => () => {},
     effect: (fn) => { const d = fn(); return typeof d === 'function' ? d : () => {} },
-    inject: (deps, cb) => { injectCb2 = cb; return () => {} },
+    inject: (deps, cb) => { if (deps.indexOf('slots') !== -1) injectCb2 = cb; return () => {} },
     // The typert namespace accessor, answering the shape `describe()` really
     // returns: `{ ok, value: { namespaces: [{ ns, value, revision }] } }`.
     remote: {
@@ -1694,7 +1713,7 @@ console.log('\n=== 16. the skin list follows the market classification ===')
       provide: (n, v) => { provided4[n] = v },
       on: () => () => {},
       effect: (fn) => { const d = fn(); return typeof d === 'function' ? d : () => {} },
-      inject: (deps, cb) => { cb4 = cb; return () => {} },
+      inject: (deps, cb) => { if (deps.indexOf('slots') !== -1) cb4 = cb; return () => {} },
       logger: { info() {}, warn() {}, error() {} },
     })
     if (cb4) cb4({ slots: { inject: () => () => {}, register: () => () => {} } })
@@ -2350,7 +2369,7 @@ console.log('\n=== 21. a handle-less skin VISIBLY in effect (the state 默认 co
     provide: (n, v) => { provided5[n] = v },
     on: () => () => {},
     effect: (fn) => { const d = fn(); return typeof d === 'function' ? d : () => {} },
-    inject: (deps, cb) => { cb5 = cb; return () => {} },
+    inject: (deps, cb) => { if (deps.indexOf('slots') !== -1) cb5 = cb; return () => {} },
     logger: { info() {}, warn() {}, error() {} },
     remote: {
       pluginManager: {
@@ -2518,7 +2537,7 @@ console.log('\n=== 22. activating a handle-less skin IN-PAGE still reloads ===')
     provide: (n, v) => { provided6[n] = v },
     on: () => () => {},
     effect: (fn) => { const d = fn(); return typeof d === 'function' ? d : () => {} },
-    inject: (deps, cb) => { cb6 = cb; return () => {} },
+    inject: (deps, cb) => { if (deps.indexOf('slots') !== -1) cb6 = cb; return () => {} },
     logger: { info() {}, warn() {}, error() {} },
     remote: {
       pluginManager: {
@@ -2770,11 +2789,13 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     const store = new Map()
     const body = new El('body')
     // The baseline sandbox is deliberately `zh-CN` (the maintainer's locale). This section
-    // asserts the WORDS a user reads, so it pins its own `en` documentElement instead of
-    // depending on the ambient locale — and it must not mutate the shared one, which the
-    // sections before it read.
+    // asserts the WORDS a user reads, so it pins its own `en` locale instead of
+    // depending on the ambient one — and it must not mutate the shared sandbox, which the
+    // sections before it read. `documentElement` is still needed (the bundle clears `zoom`
+    // and reads `colorScheme` off it) but its `lang` is NOT: the bundle writes `<html lang>`
+    // through the `locale` service and never reads it back, so the locale below is the
+    // only lever.
     const docEl = new El('html')
-    docEl.setAttribute('lang', 'en')
     const doc = Object.assign({}, documentStub, {
       documentElement: docEl,
       body,
@@ -2786,9 +2807,12 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     body.isConnected = true
     const sb = Object.assign({}, sandbox, {
       document: doc,
-      // `detectLocaleTag()` reads `document.documentElement.lang` first, but the harness's `El`
-      // has no `lang` getter — so it falls through to `navigator.language`, which the baseline
-      // sandbox pins to `zh-CN`. Pinning it here is what makes the strings below predictable.
+      // With no `locale` service composed, the bundle picks its fallback from the BROWSER
+      // language (`navigator.languages`, then `navigator.language`) — the same rule the
+      // official framework applies before a stored preference exists. `<html lang>` is no
+      // longer read here, and the `lang` argument above only survives as decoration, so
+      // THIS is what makes the strings below predictable. Keep the two in step, or pin
+      // one and delete the other.
       navigator: { userAgent: 'harness', language: lang || 'en', languages: [lang || 'en'] },
       localStorage: {
         getItem: (k) => (store.has(k) ? store.get(k) : null),
@@ -3147,7 +3171,9 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
       // synchronously inside apply() means anything it throws aborts apply() itself, so
       // `applyTrigger()` never runs and the overlay button this section clicks is never created.
       // It also matches Cordis: the service arrives when it arrives, not mid-apply.
-      inject: (deps, cb) => { if (typeof cb === 'function') storedSlotCallback = cb; return () => {} },
+      // Gated on `slots` — apply() also registers a `locale` watcher, and this
+      // section invokes the stored callback to mount the SLOT trigger.
+      inject: (deps, cb) => { if (deps.indexOf('slots') !== -1 && typeof cb === 'function') storedSlotCallback = cb; return () => {} },
       // The slot path needs a `slots` service to mount the trigger; the overlay needs none.
       slots: slotsService,
       remote: {
@@ -3549,7 +3575,257 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stan
     'id=' + String(definition && definition.id))
 }
 
+console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, switch, release ===')
+{
+  // The panel's strings used to come from a private copy of a locale engine: its own
+  // `<html lang>` reader, its own current-language variable, its own writer. That is
+  // two authorities over one fact, and it drifted. `t()` is now a PROXY onto DSH's
+  // official `locale` service, which owns the dictionary registry, the persisted
+  // preference, `locale/change` and `<html lang>`.
+  //
+  // Everything above runs with NO locale service composed, which proves only the
+  // degradation path. This section composes one — a stub honouring the real
+  // contract, including the two places it THROWS — and drives it through the service
+  // the panel publishes, because that `{ t, L }` is what the `dock-flash` adapter
+  // consumes. A migration that only ever ran the fallback would look identical here
+  // and still be the old code.
+  const NS = 'dock-flash'
+  const LOCALES = [{ id: 'zh' }, { id: 'en' }]
+
+  function makeLocaleService (startId) {
+    const dicts = new Map()          // ns -> { locale -> dict }
+    const listeners = new Set()
+    let active = startId
+    let revision = 0
+    const svc = {
+      getSnapshot: () => ({ active, locales: LOCALES.slice(), revision }),
+      getLocale: () => ({ active, locales: LOCALES.slice(), revision }),
+      setLocale (id) {
+        // The real one REJECTS an id it has never been given. A caller that
+        // invents its own list of locales finds out here, loudly.
+        if (!LOCALES.some((l) => l.id === id)) throw new Error('locale "' + id + '" is not registered')
+        if (id === active) return
+        active = id
+        revision++
+        listeners.forEach((fn) => { try { fn(svc.getSnapshot()) } catch (_) {} })
+      },
+      register (ns, dictsOrLocale, maybeDict) {
+        const byLocale = typeof dictsOrLocale === 'string' ? { [dictsOrLocale]: maybeDict } : dictsOrLocale
+        const bucket = dicts.get(ns) || {}
+        // Also the real behaviour: a SECOND registration of the same
+        // ns+locale is refused. A plugin that re-applies on a disable→enable
+        // cycle without releasing hits this and loses its dictionaries.
+        for (const key of Object.keys(byLocale)) {
+          if (bucket[key]) throw new Error('locale namespace "' + ns + '" already has locale "' + key + '"')
+        }
+        Object.assign(bucket, byLocale)
+        dicts.set(ns, bucket)
+        revision++
+        let released = false
+        return () => {
+          if (released) return
+          released = true
+          const now = dicts.get(ns) || {}
+          for (const key of Object.keys(byLocale)) delete now[key]
+        }
+      },
+      bind (ns) {
+        return (key, params) => {
+          const bucket = dicts.get(ns) || {}
+          const value = bucket[active] && bucket[active][key] !== undefined
+            ? bucket[active][key]
+            : (bucket.en && bucket.en[key])
+          if (value === undefined) return key
+          if (!params) return value
+          return String(value).replace(/\{(\w+)\}/g, (m, k) => (params[k] === undefined ? m : String(params[k])))
+        }
+      },
+      subscribe (fn) { listeners.add(fn); return () => listeners.delete(fn) },
+    }
+    return { svc, dicts, listenerCount: () => listeners.size }
+  }
+
+  function sandboxWithLocale (localeService) {
+    const store = new Map()
+    store.set('dock-flash:trigger-position', 'conversation.overlay')
+    const body = new El('body')
+    const doc = Object.assign({}, documentStub, {
+      body,
+      querySelectorAll: (s) => [...body.querySelectorAll(s), ...head.querySelectorAll(s)],
+      getElementById: (id) => body.descendants().find((e) => e.id === id) || null,
+      addEventListener() {}, removeEventListener() {},
+      __fire() {},
+    })
+    body.isConnected = true
+    const sb = Object.assign({}, sandbox, {
+      document: doc,
+      navigator: { userAgent: 'harness', language: 'en', languages: ['en'] },
+      localStorage: {
+        getItem: (k) => (store.has(k) ? store.get(k) : null),
+        setItem: (k, v) => store.set(k, String(v)),
+        removeItem: (k) => store.delete(k),
+        clear: () => store.clear(),
+        get length() { return store.size },
+      },
+    })
+    sb.window = sb
+    sb.globalThis = sb
+    let def = null
+    sb.window.__ModuleLoader__ = { load: (d) => { def = d } }
+    vm.runInNewContext(code, sb, { filename: 'lib/client.js#localeService' })
+    const plugin = def.factory(requireStub)
+    const provided = {}
+    let slotCb = null
+    // Real Cordis disposes every effect AND un-provides every service when the fiber
+    // goes away, so this collects both and runs them in reverse — otherwise
+    // "dispose releases the namespace" could only be asserted against a disposer
+    // nobody called, and the re-apply below would hit the duplicate-apply guard.
+    const disposers = []
+    const providedKeys = new Set()
+    const ctx = {
+      get: (name) => (name === 'remote' ? undefined : (name === 'locale' ? localeService : provided[name])),
+      provide: (name, value) => { provided[name] = value; providedKeys.add(name) },
+      on: () => () => {},
+      emit: () => {},
+      effect: (fn) => {
+        const d = fn()
+        const dispose = typeof d === 'function' ? d : () => {}
+        disposers.push(dispose)
+        return dispose
+      },
+      inject: (deps, cb) => { if (deps.indexOf('slots') !== -1) slotCb = cb; return () => {} },
+      remote: {
+        settings: {
+          describe: () => Promise.resolve({ ok: true, value: { namespaces: [{ ns: 'dock-flash', revision: 3,
+            value: { panelOrder: {}, activeSkin: '', triggerPosition: 'conversation.overlay' } }] } }),
+          update: () => Promise.resolve({ ok: true, value: { revision: 4 } }),
+        },
+      },
+      logger: { info() {}, warn() {}, error() {} },
+    }
+    return {
+      sb, plugin, ctx, provided, slotCb,
+      disposeFiber: () => {
+        while (disposers.length) { try { disposers.pop()() } catch (_) {} }
+        for (const key of providedKeys) delete provided[key]
+        providedKeys.clear()
+      },
+    }
+  }
+
+  // ── (a) the service IS in force: the dictionary lives in ITS registry ──────────
+  const A = makeLocaleService('en')
+  const a = sandboxWithLocale(A.svc)
+  a.plugin.apply(a.ctx)
+  const aSvc = a.sb.window.__dockFlashPanelService()
+  const t = aSvc && aSvc.i18n && aSvc.i18n.t
+
+  check('the bundle registered its dictionaries under its own namespace',
+    !!A.dicts.get(NS) && !!A.dicts.get(NS).zh && !!A.dicts.get(NS).en,
+    'namespaces=' + [...A.dicts.keys()].join(','))
+  check('...and BOTH locales arrived intact (the whole zh/en tables, not a sample)',
+    Object.keys(A.dicts.get(NS).zh).length > 80 && Object.keys(A.dicts.get(NS).en).length > 80,
+    'zh=' + Object.keys(A.dicts.get(NS).zh).length + ' en=' + Object.keys(A.dicts.get(NS).en).length)
+  check('the published i18n surface still carries exactly { t, L }',
+    Object.keys(aSvc.i18n).sort().join(',') === 'L,t' && typeof t === 'function'
+      && typeof aSvc.i18n.L === 'function',
+    Object.keys(aSvc.i18n).sort().join(','))
+
+  // ── (b) the active language comes FROM the service, not from a copy ────────────
+  // The service says `en`; the browser fallback would say `en` too, so the direction
+  // that proves the wiring is the one where they DISAGREE.
+  A.svc.setLocale('zh')
+  check('t() follows the service, not the browser language', t('title') === '快捷控制' && t.getLocale() === 'zh',
+    't(title)=' + t('title') + ' locale=' + t.getLocale())
+  check('...and the switch row reports the same value through the same single read',
+    (() => {
+      const row = a.provided.quickControl.getSwitches().find((s) => s.id === 'dock-flash:language')
+      return !!row && row.getValue() === 'zh'
+    })(),
+    'language row getValue()=' + (() => {
+      const row = a.provided.quickControl.getSwitches().find((s) => s.id === 'dock-flash:language')
+      return row ? String(row.getValue()) : 'row not registered'
+    })())
+
+  // ── (c) a change the SERVICE makes reaches every listener ────────────────────
+  // This is the adapter's own dependency: its sidebar-title patch rides
+  // `t.onLocaleChange`. Losing it is silent — the panel switches, the title does not.
+  let notified = 0
+  const off = t.onLocaleChange(() => { notified++ })
+  A.svc.setLocale('en')
+  check('the service notifying is what notifies our listeners', notified === 1 && t('title') === 'Quick Control',
+    'notified=' + notified + ' t(title)=' + t('title'))
+  off()
+  A.svc.setLocale('zh')
+  check('...and an unsubscribed listener goes quiet', notified === 1, 'notified=' + notified)
+
+  // ── (d) writing through the row switches the WHOLE app, once ─────────────────
+  // The row used to write the service AND a private copy. It now delegates, so the
+  // service is the only thing that moves and the panel learns about it by being
+  // told — not because the writer also poked it.
+  const row = a.provided.quickControl.getSwitches().find((s) => s.id === 'dock-flash:language')
+  const versionBefore = a.provided.quickControl.version
+  row.setValue('en')
+  check('setValue switches the service and touches nothing else',
+    A.svc.getSnapshot().active === 'en' && t('title') === 'Quick Control'
+      && a.provided.quickControl.version === versionBefore,
+    'active=' + A.svc.getSnapshot().active + ' version=' + a.provided.quickControl.version + '/' + versionBefore)
+  check('the row offers exactly the locales the service knows about',
+    JSON.stringify(row.options.map((o) => o.value)) === '["zh","en"]',
+    JSON.stringify(row.options.map((o) => o.value)))
+  // An id the service would REJECT must not reach it at all — the guard is what
+  // keeps a stale stored value from throwing inside a settings handler.
+  let threw = false
+  try { row.setValue('fr') } catch (_) { threw = true }
+  check('an unregistered language is refused quietly and changes nothing',
+    !threw && A.svc.getSnapshot().active === 'en',
+    'threw=' + threw + ' active=' + A.svc.getSnapshot().active)
+
+  // ── (e) the fallback, which is the ONLY thing running without the plugin ──────
+  const b = sandboxWithLocale(undefined)
+  b.plugin.apply(b.ctx)
+  const tFallback = b.sb.window.__dockFlashPanelService().i18n.t
+  check('with no locale service, every string still resolves from the built-in tables',
+    tFallback('title') === 'Quick Control' && tFallback('no-such-key-anywhere') === 'no-such-key-anywhere',
+    't(title)=' + tFallback('title'))
+  check('...and the row still works, because a fallback is not a read-only UI',
+    (() => {
+      const r = b.provided.quickControl.getSwitches().find((s) => s.id === 'dock-flash:language')
+      r.setValue('zh')
+      return tFallback('title') === '快捷控制' && r.getValue() === 'zh'
+    })(),
+    'fallback setValue did not switch')
+
+  // ── (f) dispose gives the namespace BACK ─────────────────────────────────────
+  // The one thing a `register` that throws on duplicates makes fatal: a plugin that
+  // never releases its claim cannot re-register, so disable→enable leaves the panel
+  // speaking the fallback language for the rest of the session.
+  const C = makeLocaleService('en')
+  const c = sandboxWithLocale(C.svc)
+  c.plugin.apply(c.ctx)
+  const registeredOnce = !!C.dicts.get(NS) && !!C.dicts.get(NS).zh
+  c.disposeFiber()
+  check('dispose releases the namespace and drops the subscription',
+    registeredOnce && (!C.dicts.get(NS) || !C.dicts.get(NS).zh) && C.listenerCount() === 0,
+    'still registered=' + !!(C.dicts.get(NS) && C.dicts.get(NS).zh) + ' listeners=' + C.listenerCount())
+
+  // …and the SAME service instance accepts the plugin again. This is the assertion
+  // that turns (f) from a tidy property into the reason it exists.
+  let reapplyError = null
+  try { c.plugin.apply(c.ctx) } catch (err) { reapplyError = err }
+  check('re-applying against the same service re-registers instead of throwing',
+    !reapplyError && !!C.dicts.get(NS) && C.dicts.get(NS).zh && C.dicts.get(NS).zh.title === '快捷控制',
+    reapplyError ? String(reapplyError) : 're-registered=' + !!(C.dicts.get(NS) && C.dicts.get(NS).zh))
+  // The dictionary is back in the registry; the assertion that matters is that the
+  // panel READS it. The service is still on `en`, so switch it and watch the panel
+  // answer from the freshly re-registered zh table.
+  C.svc.setLocale('zh')
+  check('...and the panel is speaking Chinese again, from the re-registered service',
+    c.sb.window.__dockFlashPanelService().i18n.t('title') === '快捷控制',
+    't(title)=' + c.sb.window.__dockFlashPanelService().i18n.t('title'))
+}
+
 console.log('\n' + (failures.length === 0 ? '✅ ALL CHECKS PASSED' : '❌ FAILURES: ' + failures.join('; ')))
-// The bundle installs its own intervals (skin refresh, i18n watch), so exit
-// explicitly rather than waiting for the event loop to drain.
+// The bundle installs its own intervals (skin refresh, host-preference poll), so
+// exit explicitly rather than waiting for the event loop to drain.
 process.exit(failures.length === 0 ? 0 : 1)
