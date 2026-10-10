@@ -68,7 +68,7 @@ Built-in switches are grouped into Appearance / Layout / System (compact two-col
 ### Core capabilities
 
 - 🧩 **Dynamic Discovery** — Other plugins register their own switches through the `quickControl` service; the panel auto-renders them
-- 🌐 **Internationalization** — Full Chinese/English localization, auto-follows the DSH language setting (via `<html lang>` MutationObserver)
+- 🌐 **Internationalization** — Full Chinese/English localization, following the DSH language setting through its official `locale` service
 - 🎨 **Skin System** — Multi-layer discovery + categorized switching (CSS / Managed / Excluded)
 - 🛡️ **Error Boundaries** — All panel components are wrapped so a render error cannot crash the host that mounted the panel
 - 🔌 **Standalone Mode** — Works with no host at all: a ⚡ trigger injected into the configured conversation slot opens a floating popup panel
@@ -354,7 +354,15 @@ Skin selection, panel order, the standalone trigger position, the trigger button
 
 ## 🌐 Internationalization
 
-The panel includes built-in Chinese/English localization that auto-follows the DSH language setting. Third-party switches can use functional labels (`label: () => t('xxx')`) for dynamic refresh on language change.
+The panel is localized in Chinese and English, and it does not decide which of the two to draw. Its
+zh/en tables are handed to DSH's own `@deepseek-ai/dsh-client-locale` registry under the `dock-flash`
+namespace, so the global language setting — the one in DSH's Settings, the one that also drives
+`<html lang>` and is persisted to the Host — is the only authority, and the panel re-renders when that
+service reports a change. Compose no locale plugin and the panel still renders every string, falling
+back to the browser's language.
+
+Third-party switches get this for free through the same lookup: declare a functional label
+(`label: () => t('xxx')`) and the row re-renders on a language change. A plain string label does not.
 
 ---
 

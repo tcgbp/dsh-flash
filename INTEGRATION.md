@@ -193,13 +193,42 @@ Use `_notifyChange()` only for **proactive** state changes (timers, server push,
 
 ## i18n Labels
 
-Use a function for `label` to support real-time language switching:
+A label is resolved on every render, so a **function** re-renders when the user changes the UI
+language and a plain string does not. Always use a function for user-visible text.
+
+Read the language from DSH's own `locale` service, which is the authority for it — it holds the
+dictionary registry, the persisted preference, and `<html lang>`:
 
 ```js
-label: () => document.documentElement.lang === 'zh' ? '我的开关' : 'My Switch'
+// ✅ Correct — DSH's locale service, the single authority
+const locale = ctx.get('locale')
+locale.register('my-plugin', {
+  zh: { notifications: '🔔 通知' },
+  en: { notifications: '🔔 Notifications' },
+})
+const t = locale.bind('my-plugin')
+
+// …in the switch definition:
+label: () => t('notifications')
 ```
 
-Static string labels won't update when the user changes the UI language.
+Two behaviours of that service are worth knowing before you call it: `register()` **rejects** a locale
+already registered under your namespace, so register once and keep the disposer it returns; and
+`setLocale()` **rejects** an id it has never been given, so read the available ids from
+`getSnapshot().locales` rather than assuming `zh` and `en`.
+
+If you would rather not depend on the locale package, the panel's own proxy is published on the
+`dockFlashPanel` service as `i18n: { t, L }`, with `t.getLocale()` and `t.onLocaleChange(fn)` — the
+same strings the panel itself draws. Prefer the service when you have your own dictionaries.
+
+```js
+// ❌ Wrong — reads a DOM attribute the panel no longer reads either, and misses
+// the persisted preference entirely
+label: () => document.documentElement.lang === 'zh' ? '我的开关' : 'My Switch'
+
+// ❌ Wrong — frozen at registration; silently keeps the old language
+label: 'My Switch'
+```
 
 ---
 
@@ -256,6 +285,23 @@ window.__ModuleLoader__.load({
       var notificationsEnabled = true
       var refreshInterval = 30
 
+      // ── i18n: hand our dictionaries to DSH's locale service ──
+      // Optional, so read it with ctx.get() and keep a fallback. register()
+      // returns a disposer, and the subscription is released with the fiber.
+      var t = function (key) { return key }
+      var locale = ctx.get('locale')
+      if (locale) {
+        ctx.effect(() => {
+          var dispose = locale.register('my-plugin', {
+            zh: { notifications: '🔔 通知', refreshInterval: '🔄 刷新间隔' },
+            en: { notifications: '🔔 Notifications', refreshInterval: '🔄 Refresh Interval' },
+          })
+          return dispose
+        }, 'my-plugin: locale dictionaries')
+        var bound = locale.bind('my-plugin')
+        t = function (key) { return bound(key) }
+      }
+
       // ── Register switches when dsh-flash is available ──
       var registered = false
 
@@ -267,7 +313,7 @@ window.__ModuleLoader__.load({
         ctx.effect(() => {
           var dispose = registry.registerSwitch({
             id: 'my-plugin:notifications',
-            label: () => document.documentElement.lang === 'zh' ? '🔔 通知' : '🔔 Notifications',
+            label: () => t('notifications'),
             icon: '🔔',
             type: 'toggle',
             order: 100,
@@ -281,7 +327,7 @@ window.__ModuleLoader__.load({
         ctx.effect(() => {
           var dispose = registry.registerSwitch({
             id: 'my-plugin:refresh-interval',
-            label: () => document.documentElement.lang === 'zh' ? '🔄 刷新间隔' : '🔄 Refresh Interval',
+            label: () => t('refreshInterval'),
             icon: '🔄',
             type: 'slider',
             order: 110,
