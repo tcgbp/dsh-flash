@@ -1,6 +1,6 @@
 {
   "name": "dsh-flash",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Quick Control panel core for DSH Workbench — the floating/docked quick-control panel with the extensible switch registry, the skin system and the alert surfaces. Publishes the `dockFlashPanel` service; the dock-base integration ships separately as `dock-flash`.",
   "license": "Apache-2.0",
   "type": "module",
