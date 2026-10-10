@@ -616,8 +616,8 @@ The rules, one line each. Phase tables, case histories and measurements are in
   `_applySkin('default')`, the only route that switches EVERY skin off.
 - **A CSS skin is a WHOLE PLUGIN, and the switch has THREE call sites plus TWO halves — all five must
   agree**: the entry row (`setPluginEnabled`) AND `dsh.profile.bundles` (`byBundlePath()`). Nothing
-  else is a switch — a UI control never edits the install layers. `_isMarketLiveTheme()` gates
-  nothing: nothing assigns `_marketThemes`, so it is always `false`.
+  else is a switch — a UI control never edits the install layers, and a gate that can never
+  pass is not a gate (the market-era one is gone).
 - **The entry id is NOT derivable** — `_entryIdCandidates()` only guesses, and `dsh-dream-skin`'s real
   id is `dream-skin`. `POST /plugins/dock-flash/set-plugin-entry` is the authority because the HOST
   reads the package's own `cordis.patch.yml`. **Resolve the profile from `profileContext`, never
