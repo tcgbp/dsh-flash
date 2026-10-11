@@ -310,12 +310,12 @@ Within the same group, switches are sorted by `order` ascending.
 
 Four rules are worth knowing, all deliberate:
 
-- **The Workbench page has no header at all** — its controls are drawn directly, always; with no header it also cannot be collapsed, since a page that folds with no way to unfold would hide its rows for good.
-- **Each icon carries its row's name as a tooltip.** **Language is the one row drawn without a glyph**: its control already reads 中文 / English.
+- **No page draws a tab header inside the panel.** The remaining tabs become **one fixed icon row pinned above the list** — a tab bar, not a row that scrolls away. Only that row can reach the Extensions page in this mode, since the change log is left out and the Workbench page is pinned open, so it stays where it cannot be scrolled out of reach. The Workbench page gets no chip there: its controls are drawn directly, always, and a chip that could not unfold them would be a dead tab.
+- **Each icon carries its row's name as a tooltip**, the chips included. **Language is the one row drawn without a glyph**: its control already reads 中文 / English.
 - **A cluster whose master switch is OFF is not shown at all**, head included; the full panel still lists it.
 - **`log` switches are left out** and an `action` becomes an icon-only button whose wording moves into its tooltip.
 
-`window.__dockFlashPanelOrder().compact` reports the mode and which clusters it is hiding.
+`window.__dockFlashPanelOrder().compact` reports the mode, which clusters it is hiding, and which pages the pinned icon row carries (`tabStripPages`).
 
 ### quickControl Service API
 
