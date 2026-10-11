@@ -3224,9 +3224,53 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
     btn.dispatch('mousedown', ev(1))
     btn.dispatch('click', ev(1))
     await new Promise((r) => setTimeout(r, 20))
-    return { reg, updates, sb, btn, ev, snapshot: () => sb.window.__dockFlashPanelOrder(),
+    return { reg, updates, sb, btn, ev, ctx, provided,
+             snapshot: () => sb.window.__dockFlashPanelOrder(),
              setMaster: (v) => { masterOn = !!v; reg.notifyChange('harness:master') } }
   }
+
+  /** Render the panel COMPONENT itself and hand back its element tree.
+   *
+   *  The harness's `renderTree` walks a tree and discards it, which is enough to prove a render
+   *  does not throw but says nothing about WHERE a node sits — and "the tab strip is outside the
+   *  scroller" is a statement about position, not existence. So this invokes the component the
+   *  service publishes (`panelService.Panel`, the same function `renderPanel()` mounts) and
+   *  returns the elements for the assertions to walk. Hook cells and pending effects are restored
+   *  afterwards: this is a probe, and it must not disturb the render bookkeeping other sections
+   *  read. */
+  function renderPanelElement (t, standalone) {
+    const svc = t.provided && t.provided.dockFlashPanel
+    if (!svc || typeof svc.Panel !== 'function') return null
+    const savedCells = hookCells.splice(0, hookCells.length)
+    const savedFx = pendingEffects.splice(0, pendingEffects.length)
+    let el = null
+    try {
+      // `standalone` is the ONLY thing that gates compact mode (`_compactPanelForSurface`), so the
+      // two calls below differ by exactly that prop — the same difference dock-base's props carry.
+      el = svc.Panel({ ctx: t.ctx, active: true, standalone: standalone !== false,
+                       viewId: 'dock-flash:standalone', sessionId: 'standalone' })
+    } catch (e) {
+      console.error('[harness] panel render threw:', e && e.message)
+    }
+    // Restore EXACTLY — the probe's own hook cells and effects are dropped, not appended, or a
+    // later section would find cells from a render it never asked for.
+    hookCells.length = 0
+    for (const c of savedCells) hookCells.push(c)
+    pendingEffects.length = 0
+    for (const f of savedFx) pendingEffects.push(f)
+    return el
+  }
+  /** Every element below `el`, self included. Plain render helpers are already inlined by the
+   *  component, so no function component needs invoking here. */
+  function walkEl (el, fn, depth = 0) {
+    if (!el || typeof el !== 'object' || depth > 40) return
+    if (Array.isArray(el)) { for (const c of el) walkEl(c, fn, depth + 1); return }
+    fn(el)
+    if (el.props) walkEl(el.props.children, fn, depth + 1)
+  }
+  /** The scroller is identified by the class compact mode puts on it — the same marker the
+   *  WebKit scrollbar-hiding rule targets, so it cannot silently move. */
+  const isScroller = (el) => !!(el.props && el.props.className === 'dock-flash-compact-scroll')
 
   // ── (a) the mode comes from the preference, and it removes the text chrome ──────────────
   {
@@ -3239,13 +3283,94 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
       !!snap && !snap.compact.pages.includes('changes'), snap && JSON.stringify(snap.compact.pages))
     check('...and the alert bar is not drawn',
       !!snap && snap.compact.alertBar === false, snap && String(snap.compact.alertBar))
-    // The Workbench page keeps its ROWS but loses its header: a chip that only collapsed the
-    // panel's own controls was a row of chrome for nothing, and a page with no header must not be
-    // collapsible either — that pair has to agree or its rows become unreachable.
-    check('...and the Workbench page is drawn WITHOUT a tab header, while still being listed',
-      !!snap && snap.compact.headerlessPages.includes('workbench')
-        && snap.compact.pages.includes('workbench'),
+    // Compact mode draws NO tab header inside the scroll flow. The Workbench page loses its chip
+    // entirely (its controls ARE the panel, and `compactPageAlwaysOpen` means it cannot collapse);
+    // every OTHER page's chip moves out of the scroller into the fixed strip above it. Both halves
+    // are pinned here, because the pair is the invariant: a page absent from `headerlessPages`
+    // would still be drawing a header into the narrow panel, and a page absent from BOTH lists
+    // would have no entry point at all.
+    check('...and NO page draws a tab header inside the scroll flow',
+      !!snap && snap.compact.pages.length > 0
+        && snap.compact.headerlessPages.slice().sort().join() === snap.compact.pages.slice().sort().join(),
       JSON.stringify({ pages: snap.compact.pages, headerless: snap.compact.headerlessPages }))
+    check('...and the Workbench page is still listed even though it has no header of any kind',
+      !!snap && snap.compact.pages.includes('workbench')
+        && !snap.compact.tabStripPages.includes('workbench'),
+      JSON.stringify({ pages: snap.compact.pages, strip: snap.compact.tabStripPages }))
+    // The entry point for third-party switches. At 176px the Changes page is not built and the
+    // Workbench page is pinned open, so this chip is the ONLY way to reach another plugin's rows —
+    // which is why it left the scroll flow rather than being deleted with it.
+    check('...while the Extensions chip moves to the FIXED strip above the scroller',
+      !!snap && snap.compact.tabStripPages.includes('extensions'),
+      JSON.stringify(snap.compact.tabStripPages))
+    check('...and every page is reachable — listed, and either headerless-by-design or in the strip',
+      !!snap && snap.compact.pages.every((id) => snap.compact.headerlessPages.includes(id)
+        || snap.compact.tabStripPages.includes(id)),
+      JSON.stringify(snap.compact))
+
+    // ── the POSITION, asserted on the real element tree ────────────────────────────────────
+    // The snapshot above is a summary the panel publishes; it can say "headerless" and still be
+    // lying about where the chip is drawn. And "outside the scroller" is a statement about
+    // position, so it has to be walked, not summarised. `renderTree` discards what it walks, so
+    // this invokes the component the service publishes and keeps the elements.
+    const tree = renderPanelElement(t)
+    const strip = { found: false, insideScroller: false, beforeScroller: false, chips: [] }
+    const scroller = { found: false, chips: 0 }
+    const rootKidsOf = (el) => {
+      const kids = el && el.props && el.props.children
+      if (!kids) return []
+      return Array.isArray(kids) ? kids.filter(Boolean) : [kids]
+    }
+    // Walk with "am I inside the scroller?" carried down the stack — an element has no pointer to
+    // its parent, so position can only be answered by the walk itself.
+    const walk = (el, inside) => {
+      if (!el) return
+      if (Array.isArray(el)) { for (const c of el) walk(c, inside); return }
+      if (typeof el !== 'object') return
+      const props = el.props || {}
+      const nowInside = inside || isScroller(el)
+      if (isScroller(el)) scroller.found = true
+      if (props.role === 'tab') { if (inside) scroller.chips += 1 }
+      if (props.role === 'tablist') {
+        strip.found = true
+        if (inside) strip.insideScroller = true
+        for (const k of rootKidsOf(el)) if (k.props) strip.chips.push(k.props['data-dock-flash-tab'])
+      }
+      walk(props.children, nowInside)
+    }
+    walk(tree, false)
+    // The panel root's children, IN ORDER: the strip must precede the scroller, not trail it.
+    const scrollerAt = rootKidsOf(tree).findIndex((k) => isScroller(k))
+    const stripAt = rootKidsOf(tree).findIndex((k) => k && k.props && k.props.role === 'tablist')
+    strip.beforeScroller = stripAt !== -1 && scrollerAt !== -1 && stripAt < scrollerAt
+    check('the compact panel really renders the chip strip OUTSIDE the scrollable body',
+      strip.found && scroller.found && !strip.insideScroller && strip.beforeScroller,
+      JSON.stringify(strip))
+    check('...and nothing inside the scroller is a chip any more',
+      scroller.found && scroller.chips === 0,
+      'chips inside the scroller = ' + scroller.chips)
+    check('...and the strip carries a chip for exactly the pages the snapshot promises',
+      strip.chips.length === snap.compact.tabStripPages.length
+        && snap.compact.tabStripPages.every((id) => strip.chips.includes(id)),
+      JSON.stringify({ drawn: strip.chips, promised: snap.compact.tabStripPages }))
+    // The strip is a preference-driven surface, so the FULL panel must not grow one — and the full
+    // panel is the SAME component with `standalone` absent, exactly the props dock-base passes.
+    {
+      const docked = await openCompactPanel(true, true)
+      const dockedTree = renderPanelElement(docked, false)
+      let dockedTabs = 0
+      let dockedTablists = 0
+      if (dockedTree) walkEl(dockedTree, (el) => {
+        if (!el.props) return
+        if (el.props.role === 'tablist') dockedTablists += 1
+        if (el.props.role === 'tab') dockedTabs += 1
+      })
+      check('the DOCKED (non-standalone) panel grows no strip at all',
+        !!dockedTree && dockedTablists === 0 && dockedTabs === 0,
+        dockedTree
+          ? 'tablists=' + dockedTablists + ' tabs=' + dockedTabs
+          : 'docked panel did not render')
+    }
     // ── the SURFACE gate: the reported regression, pinned where it actually failed ──────────
     // The docked workbench panel is mounted by dock-base, with none of the standalone props, and
     // it must stay FULL: reading the preference unconditionally is what made it draw icon-only
@@ -3334,9 +3459,10 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
       JSON.stringify(snap && snap.compact.iconless))
     check('...and no other row loses its icon',
       !!snap && snap.compact.iconless.length === 1, JSON.stringify(snap && snap.compact.iconless))
-    check('...and no other page loses its header',
-      !!snap && !snap.compact.headerlessPages.includes('extensions'),
-      JSON.stringify(snap.compact.headerlessPages))
+    check('...and the strip is where the surviving page keeps its entry point',
+      !!snap && snap.compact.headerlessPages.includes('extensions')
+        && snap.compact.tabStripPages.includes('extensions'),
+      JSON.stringify({ headerless: snap.compact.headerlessPages, strip: snap.compact.tabStripPages }))
   }
 
   // ── (b) the cluster rule: master OFF drops the WHOLE cluster, master ON draws it ────────
