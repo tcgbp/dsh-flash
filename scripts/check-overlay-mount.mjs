@@ -3538,6 +3538,81 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
         && t.updates.every((a) => a[0] === 'dock-flash' && a.length === 3),
       JSON.stringify(t.updates.map((a) => [a[0], Object.keys(a[1] || {})])))
   }
+
+  // ── (f) the flip reaches the REACT tree, not only the imperative container ────────────────
+  // The reported regression, and the reason section (a) was not enough. (a) asks what the tree
+  // DRAWS once the mode is already true; this asks whether the tree is ever TOLD. The container is
+  // repainted imperatively by `applyCompactSurface()`, so it moved to 176px while the React half
+  // kept rendering the mode it first saw — a full text tab header inside a strip narrow enough to
+  // need none. The writer used to route through `registry.notifyChange('dock-flash:compact-panel')`
+  // and that call is a no-op for an id nobody `registerSwitch`ed, so nothing bumped the version the
+  // panel subscribes to. The panel now subscribes to the preference bridge instead.
+  {
+    const t = await openCompactPanel(true)
+    const svc = t.provided.dockFlashPanel
+    let rerenderRequests = 0
+    const requestRerender = () => { rerenderRequests += 1 }
+
+    // Save/restore like `renderPanelElement`, plus the cleanups: this probe RUNS effects, and the
+    // panel's changelog timer is a REAL interval in this sandbox. Leaving it armed would keep the
+    // process alive and hand a later section subscriptions it never asked for.
+    const savedCells = hookCells.splice(0, hookCells.length)
+    const savedFx = pendingEffects.splice(0, pendingEffects.length)
+    const savedCleanups = effectCleanups.splice(0, effectCleanups.length)
+    const savedSink = stateChangeSink
+    const renderPanelWithEffects = () => {
+      beginRender()
+      svc.Panel({ ctx: t.ctx, active: true, standalone: true,
+                  viewId: 'dock-flash:standalone', sessionId: 'standalone' })
+      runEffects(requestRerender)
+    }
+    renderPanelWithEffects()
+    // The commit itself calls setters (`setRegVersion`, the alert read). Only what happens AFTER it
+    // is evidence of a subscription.
+    rerenderRequests = 0
+    const versionBefore = t.reg.version
+    // Neutralise the OTHER channel, or the assertion proves nothing. `_emitPrefs()` also runs
+    // `adoptHostSize`/`adoptHostLayer`/`adoptHostOpacity`, and those call
+    // `notifyChange` on switches that ARE registered — so the version really does move here (measured
+    // 20 -> 22) and `setRegVersion` would have requested a re-render with no preference subscription
+    // at all. Freezing the registry leaves the preference bridge as the only thing that can ask.
+    const realNotifyChange = t.reg.notifyChange
+    t.reg.notifyChange = function () {}
+
+    t.btn.dispatch('mousedown', t.ev(2))
+    t.btn.dispatch('click', t.ev(2))
+    await new Promise((r) => setTimeout(r, 20))
+    check('the double-click requests a PANEL re-render, not just a container repaint',
+      rerenderRequests > 0, `${rerenderRequests} re-render request(s)`)
+    // The pair matters: without this second half, a stray registry bump would pass the first
+    // assertion and the actual hole — nothing re-rendering on a preference write — could come back.
+    check('...and it is the preference subscription that did it, with the registry channel frozen',
+      t.reg.version === versionBefore, `version ${versionBefore} -> ${t.reg.version}`)
+    check('...so the next render reads the mode the gesture chose',
+      t.sb.window.__dockFlashCompactMode(true) === false,
+      JSON.stringify(t.sb.window.__dockFlashCompactMode(true)))
+
+    // Reversibility, per the plugin's own rule that every subscription belongs to the render that
+    // made it: an unmounted panel must stop listening.
+    while (effectCleanups.length) {
+      const off = effectCleanups.pop()
+      try { if (typeof off === 'function') off() } catch (_) {}
+    }
+    rerenderRequests = 0
+    t.btn.dispatch('mousedown', t.ev(2))
+    t.btn.dispatch('click', t.ev(2))
+    await new Promise((r) => setTimeout(r, 20))
+    check('...and the subscription leaves with the render that made it',
+      rerenderRequests === 0, `${rerenderRequests} request(s) after the effects were disposed`)
+
+    t.reg.notifyChange = realNotifyChange
+    hookCells.length = 0
+    for (const c of savedCells) hookCells.push(c)
+    pendingEffects.length = 0
+    for (const f of savedFx) pendingEffects.push(f)
+    for (const off of savedCleanups) effectCleanups.push(off)
+    stateChangeSink = savedSink
+  }
 }
 
 console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stands down only while a host CLAIMS it ===')
