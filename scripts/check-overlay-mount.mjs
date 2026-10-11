@@ -3097,13 +3097,14 @@ console.log('\n=== 26. a style swap must not lose an edge (React diffs style obj
 }
 
 
-console.log('\n=== 27. the compact panel: a preference, a gesture, and the cluster rule ===')
+console.log('\n=== 27. the compact panel: a preference, its button, and the cluster rule ===')
 {
   // Three separate claims, because they fail in three different ways:
   //   * the MODE is a preference, so it must reach the panel from the host namespace (not from a
   //     prop, and not from localStorage) and must remove the text chrome;
-  //   * the GESTURE is `MouseEvent.detail`, because `dblclick` only fires after two `click`s and
-  //     the second of those is the one that toggles the panel;
+  //   * the ENTRY POINT is a button in the panel header, and it must drive BOTH halves — the
+  //     imperative box and the React tree. It used to be a `MouseEvent.detail >= 2` test on the
+  //     trigger, and that is asserted GONE: the trigger writes nothing at any click count;
   //   * the CLUSTER rule drops a whole block when its master switch is off, which is the one
   //     thing about this mode that can silently hide a working control.
 
@@ -3390,9 +3391,9 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
       .find((e) => e.getAttribute('data-dsh-plugin') === 'dock-flash-standalone')
     const head = panelEl && panelEl.children[0]
     const titleEl = head && head.descendants().find((e) => e.getAttribute('data-dock-flash-title') !== null)
-    const toggleBtn = head && head.descendants().find((e) => e.getAttribute('data-dock-flash-compact-toggle') !== null)
-    check('the floating header carries NO compact toggle (the double-click is the only way in)',
-      !toggleBtn, head ? head.descendants().length + ' nodes in the head' : 'no head element')
+    const toggleBtn = head && head.descendants().find((e) => e.getAttribute('data-dock-flash-compact') !== null)
+    check('the floating header carries a compact-mode toggle button',
+      !!toggleBtn, head ? head.descendants().length + ' nodes in the head' : 'no head element')
     // `visibility: hidden`, NOT `display: none` — the title is the row's `flex: 1` spacer, so
     // taking it out of the layout slides the close buttons to the left. Measured in Chrome (the
     // sandbox has no layout engine): x right edge 168 of 176 either way, 90 with `display: none`.
@@ -3424,18 +3425,55 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
     check('...and compact mode hides the title WITHOUT taking its flex slot away',
       !!titleEl && titleEl.style.visibility === 'hidden' && titleEl.style.display === '',
       titleEl ? JSON.stringify([titleEl.style.visibility, titleEl.style.display]) : 'no title node')
+    // The title is the head's `flex: 1` spacer, and a flex item's default `min-width: auto` means
+    // "never narrower than my content" — with `nowrap` that is the whole title. MEASURED at 176px:
+    // the fixed children total 138px, leaving 38px, while "快捷控制" demands 67px. Without
+    // `min-width: 0` the × is pushed outside the panel — the mechanism behind every overflow this
+    // plugin has had, now with a fifth button added to the row.
+    check('...and the title can shrink, so the head cannot overflow at the compact width',
+      !!titleEl && titleEl.style.minWidth === '0',
+      titleEl ? String(titleEl.style.minWidth) : 'no title node')
 
-    // The double-click remains the entry point, and the title follows the mode in both directions.
+    // ── the entry point: the header button, not a gesture on the trigger ────────────────────
+    // The double-click is gone. It was undiscoverable, and its handler re-rendered the React tree
+    // only when the panel happened to be CLOSED (`if (!panelVisible) openPanel()`), so pressing it
+    // with the panel open narrowed the imperative container while the React body kept drawing the
+    // full panel. The button drives both halves and re-renders while the panel is visible.
     t.updates.length = 0
-    t.btn.dispatch('mousedown', t.ev(2))
-    t.btn.dispatch('click', t.ev(2))
+    toggleBtn.dispatch('click', t.ev(1))
     await new Promise((r) => setTimeout(r, 20))
-    check('...and the double-click still flips the preference (it is the only entry point)',
+    check('pressing the header button flips the compact preference',
       t.updates.some((a) => a[1] && a[1].compactPanel === false),
       JSON.stringify(t.updates.map((a) => a[1] || {})))
     check('...and the title comes back with the full panel',
       !!titleEl && titleEl.style.visibility !== 'hidden',
       titleEl && JSON.stringify(titleEl.style.visibility))
+    // The button is a toggle, so it must say which way it will go, in the active language.
+    check('...and the button offers to go BACK to the compact strip',
+      !!toggleBtn && /精简|compact/i.test(String(toggleBtn.getAttribute('title') || '')),
+      toggleBtn && JSON.stringify(toggleBtn.getAttribute('title')))
+    check('...and it reports its state through aria-pressed',
+      !!toggleBtn && toggleBtn.getAttribute('aria-pressed') === 'false',
+      toggleBtn && String(toggleBtn.getAttribute('aria-pressed')))
+    // Pressing it again must return to compact, or the mode is a one-way switch.
+    t.updates.length = 0
+    toggleBtn.dispatch('click', t.ev(1))
+    await new Promise((r) => setTimeout(r, 20))
+    check('...and a second press returns to the compact panel',
+      t.updates.some((a) => a[1] && a[1].compactPanel === true)
+        && titleEl.style.visibility === 'hidden',
+      JSON.stringify(t.updates.map((a) => a[1] || {})))
+
+    // The trigger must now be a plain toggle: a second press is an ordinary click again, and must
+    // NOT reach the preference. This is the other half of removing the gesture — a leftover
+    // `detail >= 2` branch would keep the old, broken path alive next to the button.
+    t.updates.length = 0
+    t.btn.dispatch('mousedown', t.ev(2))
+    t.btn.dispatch('click', t.ev(2))
+    await new Promise((r) => setTimeout(r, 20))
+    check('a double-click on the trigger no longer touches the compact preference',
+      !t.updates.some((a) => a[1] && 'compactPanel' in a[1]),
+      JSON.stringify(t.updates.map((a) => a[1] || {})))
 
     // The docked panel must stay FULL whatever is stored — including a `compactPanelDocked` left in
     // the profile by the version that briefly offered the mode there. That field is gone from the
@@ -3502,25 +3540,31 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
       t.snapshot() ? JSON.stringify(t.snapshot().compact.droppedClusters) : 'hook absent (panel not in compact mode)')
   }
 
-  // ── (d) the gesture: detail 2 flips the preference; detail 1 must not touch it ──────────
+  // ── (d) the entry point writes the preference; the trigger never does ─────────────────────
   {
     const t = await openCompactPanel(true)
+    const panelEl = t.sb.document.body.descendants()
+      .find((e) => e.getAttribute('data-dsh-plugin') === 'dock-flash-standalone')
+    const headBtn = panelEl && panelEl.descendants()
+      .find((e) => e.getAttribute('data-dock-flash-compact') !== null)
+
+    // The trigger is a plain open/close toggle now. Both presses of what WOULD have been a
+    // double-click must leave the preference alone.
     t.updates.length = 0
-    // The FIRST press of a double-click: an ordinary open/close, and no preference write.
     t.btn.dispatch('mousedown', t.ev(1))
     t.btn.dispatch('click', t.ev(1))
-    await new Promise((r) => setTimeout(r, 10))
-    check('a single click does NOT write the compact preference',
+    t.btn.dispatch('mousedown', t.ev(2))
+    t.btn.dispatch('click', t.ev(2))
+    await new Promise((r) => setTimeout(r, 20))
+    check('the trigger writes NO compact preference, at any click count',
       !t.updates.some((a) => a[1] && 'compactPanel' in a[1]),
       JSON.stringify(t.updates.map((a) => Object.keys(a[1] || {}))))
 
     t.updates.length = 0
-    // The SECOND press of a double-click — the one that would otherwise CLOSE the panel.
-    t.btn.dispatch('mousedown', t.ev(2))
-    t.btn.dispatch('click', t.ev(2))
+    headBtn.dispatch('click', t.ev(1))
     await new Promise((r) => setTimeout(r, 20))
     const written = t.updates.map((a) => a[1]).filter((p) => p && 'compactPanel' in p).pop()
-    check('the second press of a double-click flips the compact preference',
+    check('the header button writes the compact preference',
       !!written && written.compactPanel === false,   // it was true, so it must now be false
       JSON.stringify(written))
     // ── (e) the tooltip: a SOURCE pin, and it says so ──────────────────────────────────────
@@ -3535,8 +3579,8 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
 
     check('...and it writes ONLY that field, through the three-argument host call',
       !!written && Object.keys(written).length === 1
-        && t.updates.every((a) => a[0] === 'dock-flash' && a.length === 3),
-      JSON.stringify(t.updates.map((a) => [a[0], Object.keys(a[1] || {})])))
+        && t.updates.some((a) => a[0] === 'dock-flash' && a.length === 3),
+      JSON.stringify(t.updates.map((a) => [a[0], Object.keys(a[1] || {}), a.length])))
   }
 
   // ── (f) the flip reaches the REACT tree, not only the imperative container ────────────────
@@ -3544,74 +3588,48 @@ console.log('\n=== 27. the compact panel: a preference, a gesture, and the clust
   // DRAWS once the mode is already true; this asks whether the tree is ever TOLD. The container is
   // repainted imperatively by `applyCompactSurface()`, so it moved to 176px while the React half
   // kept rendering the mode it first saw — a full text tab header inside a strip narrow enough to
-  // need none. The writer used to route through `registry.notifyChange('dock-flash:compact-panel')`
-  // and that call is a no-op for an id nobody `registerSwitch`ed, so nothing bumped the version the
-  // panel subscribes to. The panel now subscribes to the preference bridge instead.
+  // need none. TWO causes stacked, and the first harness only caught one: the writer routed through
+  // `registry.notifyChange('dock-flash:compact-panel')` (a no-op for an id nobody `registerSwitch`ed),
+  // AND the gesture's handler re-rendered only when the panel was CLOSED — so the common case, the
+  // panel open, never re-rendered at all.
+  //
+  // `createRoot().render()` INVOKES the tree in this sandbox and the panel rewrites
+  // `__dockFlashPanelOrder()` from its render body, so the snapshot after a press is the snapshot
+  // that press PRODUCED. Asserting that end state is what caught nothing the first time: a counted
+  // "re-render requested" passed while the real panel stayed full-width.
   {
     const t = await openCompactPanel(true)
-    const svc = t.provided.dockFlashPanel
-    let rerenderRequests = 0
-    const requestRerender = () => { rerenderRequests += 1 }
+    const panelEl = t.sb.document.body.descendants()
+      .find((e) => e.getAttribute('data-dsh-plugin') === 'dock-flash-standalone')
+    const toggleBtn = panelEl && panelEl.descendants()
+      .find((e) => e.getAttribute('data-dock-flash-compact') !== null)
+    check('the standalone panel starts compact, from the host preference',
+      !!toggleBtn && !!t.snapshot() && t.snapshot().compact.on === true,
+      JSON.stringify({ btn: !!toggleBtn, on: t.snapshot() && t.snapshot().compact.on }))
 
-    // Save/restore like `renderPanelElement`, plus the cleanups: this probe RUNS effects, and the
-    // panel's changelog timer is a REAL interval in this sandbox. Leaving it armed would keep the
-    // process alive and hand a later section subscriptions it never asked for.
-    const savedCells = hookCells.splice(0, hookCells.length)
-    const savedFx = pendingEffects.splice(0, pendingEffects.length)
-    const savedCleanups = effectCleanups.splice(0, effectCleanups.length)
-    const savedSink = stateChangeSink
-    const renderPanelWithEffects = () => {
-      beginRender()
-      svc.Panel({ ctx: t.ctx, active: true, standalone: true,
-                  viewId: 'dock-flash:standalone', sessionId: 'standalone' })
-      runEffects(requestRerender)
-    }
-    renderPanelWithEffects()
-    // The commit itself calls setters (`setRegVersion`, the alert read). Only what happens AFTER it
-    // is evidence of a subscription.
-    rerenderRequests = 0
-    const versionBefore = t.reg.version
-    // Neutralise the OTHER channel, or the assertion proves nothing. `_emitPrefs()` also runs
-    // `adoptHostSize`/`adoptHostLayer`/`adoptHostOpacity`, and those call
-    // `notifyChange` on switches that ARE registered — so the version really does move here (measured
-    // 20 -> 22) and `setRegVersion` would have requested a re-render with no preference subscription
-    // at all. Freezing the registry leaves the preference bridge as the only thing that can ask.
-    const realNotifyChange = t.reg.notifyChange
-    t.reg.notifyChange = function () {}
-
-    t.btn.dispatch('mousedown', t.ev(2))
-    t.btn.dispatch('click', t.ev(2))
+    toggleBtn.dispatch('click', t.ev(1))
     await new Promise((r) => setTimeout(r, 20))
-    check('the double-click requests a PANEL re-render, not just a container repaint',
-      rerenderRequests > 0, `${rerenderRequests} re-render request(s)`)
-    // The pair matters: without this second half, a stray registry bump would pass the first
-    // assertion and the actual hole — nothing re-rendering on a preference write — could come back.
-    check('...and it is the preference subscription that did it, with the registry channel frozen',
-      t.reg.version === versionBefore, `version ${versionBefore} -> ${t.reg.version}`)
-    check('...so the next render reads the mode the gesture chose',
-      t.sb.window.__dockFlashCompactMode(true) === false,
-      JSON.stringify(t.sb.window.__dockFlashCompactMode(true)))
+    const off = t.snapshot()
+    check('pressing the header button re-renders the REACT tree into the full panel',
+      !!off && off.compact.on === false, JSON.stringify(off && off.compact.on))
+    // The exact symptom reported: a text tab header drawn inside a 176px strip.
+    check('...so every page gets its tab header back — the thing the report was about',
+      !!off && off.compact.pages.length > 0 && off.compact.headerlessPages.length === 0,
+      JSON.stringify(off && { pages: off.compact.pages, headerless: off.compact.headerlessPages }))
+    check('...and the icon strip that replaces it is gone with the mode',
+      !!off && off.compact.tabStripPages.length === 0,
+      JSON.stringify(off && off.compact.tabStripPages))
 
-    // Reversibility, per the plugin's own rule that every subscription belongs to the render that
-    // made it: an unmounted panel must stop listening.
-    while (effectCleanups.length) {
-      const off = effectCleanups.pop()
-      try { if (typeof off === 'function') off() } catch (_) {}
-    }
-    rerenderRequests = 0
-    t.btn.dispatch('mousedown', t.ev(2))
-    t.btn.dispatch('click', t.ev(2))
+    toggleBtn.dispatch('click', t.ev(1))
     await new Promise((r) => setTimeout(r, 20))
-    check('...and the subscription leaves with the render that made it',
-      rerenderRequests === 0, `${rerenderRequests} request(s) after the effects were disposed`)
-
-    t.reg.notifyChange = realNotifyChange
-    hookCells.length = 0
-    for (const c of savedCells) hookCells.push(c)
-    pendingEffects.length = 0
-    for (const f of savedFx) pendingEffects.push(f)
-    for (const off of savedCleanups) effectCleanups.push(off)
-    stateChangeSink = savedSink
+    const back = t.snapshot()
+    check('...and a second press re-renders the tree back into the compact strip',
+      !!back && back.compact.on === true
+        && back.compact.tabStripPages.includes('extensions')
+        && back.compact.headerlessPages.length === back.compact.pages.length,
+      JSON.stringify(back && { on: back.compact.on, strip: back.compact.tabStripPages,
+                               headerless: back.compact.headerlessPages,
+                               pages: back.compact.pages }))
   }
 }
 

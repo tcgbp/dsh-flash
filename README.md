@@ -304,9 +304,11 @@ The three tab glyphs are `sliders` / `blocks` / `doc` from the panel's own `_ICO
 
 Within the same group, switches are sorted by `order` ascending.
 
-### Compact panel — double-click the ⚡
+### Compact panel — the button in the panel header
 
-**Standalone only, and the double-click is the only way in.** In compact mode the panel **drops its title** while the grip and the close/close-on-blur buttons stay, and it caps its own width so it stays a narrow column. It is a narrower strip with no borders and no scrollbar, showing only each switch's icon and its control — no labels, no descriptions, no group or tab text, and no reordering or visibility buttons. **Two consecutive toggle-only rows share one line**; a lone one keeps its half-row. It is a preference (`compactPanel`), so it follows your profile rather than the session, and double-clicking again brings the full panel back. A single click keeps its meaning — open or close — because the **second** press of a double-click is what switches the mode.
+**Standalone only, and the header button is the only way in.** In compact mode the panel **drops its title** while the grip and the close/close-on-blur buttons stay, and it caps its own width so it stays a narrow column. It is a narrower strip with no borders and no scrollbar, showing only each switch's icon and its control — no labels, no descriptions, no group or tab text, and no reordering or visibility buttons. **Two consecutive toggle-only rows share one line**; a lone one keeps its half-row. It is a preference (`compactPanel`), so it follows your profile rather than the session, and pressing the same button again brings the full panel back.
+
+The button sits at the right end of the floating panel's header, beside the close-on-blur toggle, and names the mode it will switch to. The ⚡ trigger keeps exactly one meaning — open, or close. It used to switch this mode on a **double-click**, and that entry point is gone: a `detail >= 2` test is invisible until someone happens to try it, and re-reading one press as two different intents means a deliberate second click silently changes something else.
 
 Four rules are worth knowing, all deliberate:
 
