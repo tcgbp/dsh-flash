@@ -42,9 +42,10 @@ scripts/          repo tooling — NOT published (see `files` in package.json)
 
 Docs: `README.md` / `README.zh-CN.md` (English is canonical), `INTEGRATION.md` /
 `INTEGRATION.zh-CN.md` (third-party guide), `CHANGELOG.md` (history), `AGENTS.md` (this file).
-`docs/`: `architecture-notes.md` (the "why" and the measurements), `testing-checklist.md`,
-`releasing.md`, `skin-system.md`, `panel-ordering.md`. `scripts/`: `check-docs-size.mjs`
-(`pnpm run check:docs`), `check-overlay-mount.mjs` (`pnpm run check:overlay`).
+`docs/`: `critical-rules.md` (the full text behind the numbered rules below), `switch-reference.md`
+(every optional switch field), `architecture-notes.md` (the "why" and the measurements),
+`testing-checklist.md`, `releasing.md`, `skin-system.md`, `panel-ordering.md`. `scripts/`:
+`check-docs-size.mjs` (`pnpm run check:docs`), `check-overlay-mount.mjs` (`pnpm run check:overlay`).
 
 - **Host half** (`src/index.ts`): compiled via `pnpm run build` (tsc). Touch only this file for host-side changes.
 - **Client half** (`lib/client.js`): single monolithic file, edited directly — no build, no bundler, no TypeScript. Changes take effect on page refresh (symlinked in profile).
@@ -109,7 +110,7 @@ The core has one hosting story: it always publishes a service and offers its own
 | `version` | `1` — the contract version; a consumer checks it before claiming |
 | `Panel`, `ErrorBoundary` | the QuickControlPanel and its mandatory error boundary |
 | `Header` | `({ wb }) => React element` — close-on-blur toggle + close button, painted imperatively |
-| `icon` | `LIGHTNING_ICON` (SVG string) |
+| `icon` | `LIGHTNING_ICON` — a `{ path, stroke, size }` descriptor, **not** an SVG string; a consumer renders it through its own `path`-drawing element |
 | `registry` | the QuickControlRegistry instance (also published as `quickControl`) |
 | `i18n` | `{ t, L }` |
 | `host` | `{ claim(), release(), releaseOne(), isClaimed() }` — the ownership handshake below |
@@ -457,6 +458,7 @@ The rules, one line each. Phase tables, case histories and measurements are in
 |---|---|---|
 | `toggle` | `getValue()`, `setValue(boolean)` | Boolean switch |
 | `slider` | `getValue()`, `setValue(number)`, `min`, `max`, `step` | Numeric slider |
+| `number` | `getValue()`, `setValue(number)` | Numeric input field. Optional `min`, `max`, `step` (defaults `0`, `9999`, `1`), `unit`, `formatLabel(n)`, `placeholder`, `onCommit()` |
 | `select` | `getValue()`, `setValue(any)`, `options` | Dropdown select |
 | `buttongroup` | `getValue()`, `setValue(any)`, `options` | Button group |
 | `action` | `run()` | Action button |
@@ -465,43 +467,31 @@ The rules, one line each. Phase tables, case histories and measurements are in
 ### Optional switch fields
 
 Common to every type: `icon`, `order`, `group`, `label` (string, or `() => string` for i18n),
-`visible`, and `cluster`.
+`visible`, `cluster`, and `clusterInline` + `clusterLabel`. **Every field, its exact effect and the
+trap attached to it, is in [docs/switch-reference.md](docs/switch-reference.md)** — read it before
+adding one. The four that change a row's SHAPE are stated here because they are the four that get
+wrong:
 
-`cluster: '<label>'` makes switches sharing a label **one unit** — one card, one ▲▼ pair while
-reordering, a fixed internal order (their `order`). Use it for controls whose meaning depends on
-staying together; co-dependent selects are the case that motivated it. Its members stay
-registered and are only *folded* — never gated out by `visible`, never removed — because a block that
-changes shape is the problem the fold exists to solve. A cluster is never a grid item
-(`isGridToggle()`). **The mechanics live in one place**:
-[docs/panel-ordering.md](docs/panel-ordering.md) — the fold's position, the label-keyed unit, the
-default-folded rule and the editing-mode inventory.
+- **`cluster: '<label>'`** — switches sharing a label are **one unit**: one card, one ▲▼ pair while
+  reordering, internal order from their `order`. Members stay registered and are only *folded*, never
+  gated out by `visible` and never removed — a block that changes shape is what the fold exists to
+  prevent. A cluster is never a grid item (`isGridToggle()`). Mechanics:
+  [docs/panel-ordering.md](docs/panel-ordering.md).
+- **`clusterInline: true` + `clusterLabel`** — the fold-free inline form, `select` members only: the
+  cluster title on one row, the members' dropdowns right-aligned below it. Declare it on **every**
+  member or the unit falls back to the card; declare the title once, on any member.
+- **`visible: () => boolean`** — drops the **row** while the switch stays registered, so its state,
+  its changelog entries and every other reader keep working. Normal view only: both editing modes list
+  every registered control, because one that is not drawn cannot be ordered or hidden. **A
+  `visible`-driven switch must `notifyChange` when its condition flips**, or it flips only on the next
+  unrelated render.
+- **`subtitleBlock`** — draws `subtitle` as its own full-width **wrapping** line below the row instead
+  of inside the label column, where `nowrap` + ellipsis hide exactly the long value worth reading: a
+  URL, a path, a command, a companion monitor's "precise · model · 42%" status.
 
-`clusterInline: true` + `clusterLabel` turn a `select`-only cluster into the **inline form**: the
-cluster's title on one row, the members' dropdowns right-aligned on the row below it, each naming
-itself through its own `label`, and no fold. Declare `clusterInline` on **every** member or the unit
-falls back to the card; declare the title once, on any member. A member that is not a `select` also
-falls back — the inline row draws controls, not label columns.
-
-`visible: () => boolean` drops the switch from the panel while it stays registered, so its state, its
-changelog entries and every other reader keep working — no dispose/re-register dance. It applies at
-the **row** level and **only in the normal view**; both editing modes list every registered control,
-because one that is not drawn cannot be ordered or hidden. The normal view also drops a group that
-would draw no rows, and `renderSwitch` re-checks unless passed `force` (what the editing modes do).
-**A switch driven by `visible` must notify when its condition changes**, or it flips only on the next
-unrelated render — `notifyChange` is the mechanism (e.g. a fetch completing, a timer firing).
-
-Per renderer:
-
-| Field | Types | Effect |
-|---|---|---|
-| `subtitle` | `toggle`, `select` | Secondary line in the label column |
-| `subtitleBlock` | `select`, `toggle` | Render `subtitle` as its own full-width, **wrapping** line below the row instead of inside the label column. Use it whenever the value is long enough that the inline variant's ellipsis hides the point — a URL, a path, a command, or a companion monitor toggle's "precise · model · 42%" status line. `S.switchSubtitle` (inline) sets `nowrap` + `text-overflow: ellipsis` because it shares the row with the control; `S.switchSubtitleBlock` drops both and adds `word-break: break-all`. |
-| `tooltip` | `select`, `number` | `ⓘ` icon carrying a native `title` attribute. On `number` switches the description belongs here rather than in `subtitle`: the inline subtitle shares the row with the input and ellipsizes the point, while the value is a bare digit that needs no accompanying line. The host-alert sliders (`host-alert-queue-cap`, `host-alert-max-age`) are the worked example |
-| `actionLabel` | `action` | Button text (string, or `() => string`) |
-| `hideLabel` | `action` | Drop the title column and let the button take the whole row. For an action whose button already carries its wording — Test Connection read "测试连接" twice, once as a title and once on the button. The definition keeps `label` either way: that is what the changelog and the panel name the entry with |
-| `getMeta`, `hideWhenEmpty`, `emptyText`, `onClear`, `clearTitle` | `log` | See the `log` row above. `hideWhenEmpty` renders nothing at all while `getLines()` is empty, instead of an empty box; `emptyText` is the placeholder used when it is *not* set |
-
-> **Don't hide a switch's own value behind `tooltip`.** A URL was once both a subtitle *and* a tooltip of the same string: the tooltip added a hover target and no information, while the subtitle truncated the URL at exactly the part worth reading. If a value matters, give it `subtitleBlock`. The `dsh-flash-proxy:test-url` switch (now in the extracted `dsh-flash-proxy` plugin) once dropped the line entirely — one step too far: with `custom` selected the select says only "Custom", so the address actually in force was the one thing the row did not show. It is back now (`subtitleBlock` + a resolver function), inside the proxy cluster's card.
+Per-renderer fields, in full in the reference: `subtitle` (`toggle`, `select`) · `tooltip`
+(`select`, `number`) · `actionLabel`, `hideLabel` (`action`) · `getMeta`, `hideWhenEmpty`,
+`emptyText`, `onClear` + `clearTitle` (`log`).
 
 ### Registration Rules
 
