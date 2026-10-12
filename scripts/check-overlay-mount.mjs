@@ -2687,7 +2687,11 @@ console.log('\n=== 23. a describe() that is NOT a promise must not kill the plug
     const doc = Object.assign({}, documentStub, {
       body,
       querySelectorAll: (s) => [...body.querySelectorAll(s), ...head.querySelectorAll(s)],
-      getElementById: (id) => body.descendants().find((e) => e.id === id) || null,
+      // A real `document.getElementById` searches the WHOLE document, as `documentStub` does. A
+      // body-only search makes a style tag appended to `head` invisible to the id lookup that
+      // guards its creation, so an idempotent writer appends a fresh tag on every pass.
+      getElementById: (id) => body.descendants().find((e) => e.id === id) ||
+        head.descendants().find((e) => e.id === id) || null,
       addEventListener() {}, removeEventListener() {},
       __fire() {},
     })
@@ -2800,7 +2804,11 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
       documentElement: docEl,
       body,
       querySelectorAll: (s) => [...body.querySelectorAll(s), ...head.querySelectorAll(s)],
-      getElementById: (id) => body.descendants().find((e) => e.id === id) || null,
+      // A real `document.getElementById` searches the WHOLE document, as `documentStub` does. A
+      // body-only search makes a style tag appended to `head` invisible to the id lookup that
+      // guards its creation, so an idempotent writer appends a fresh tag on every pass.
+      getElementById: (id) => body.descendants().find((e) => e.id === id) ||
+        head.descendants().find((e) => e.id === id) || null,
       addEventListener() {}, removeEventListener() {},
       __fire() {},
     })
@@ -3137,7 +3145,11 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       documentElement: docEl,
       body,
       querySelectorAll: (s) => [...body.querySelectorAll(s), ...head.querySelectorAll(s)],
-      getElementById: (id) => body.descendants().find((e) => e.id === id) || null,
+      // A real `document.getElementById` searches the WHOLE document, as `documentStub` does. A
+      // body-only search makes a style tag appended to `head` invisible to the id lookup that
+      // guards its creation, so an idempotent writer appends a fresh tag on every pass.
+      getElementById: (id) => body.descendants().find((e) => e.id === id) ||
+        head.descendants().find((e) => e.id === id) || null,
       addEventListener() {}, removeEventListener() {},
       __fire() {},
     })
@@ -3631,6 +3643,62 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
                                headerless: back.compact.headerlessPages,
                                pages: back.compact.pages }))
   }
+
+  // ── (g) the compact rule must NOT depend on a re-render ────────────────────────────────────
+  // Every assertion above asks what the tree DRAWS. None of them can fail on a tree that never
+  // re-rendered — and that IS the reported symptom: the container moved to 176px while a full text
+  // tab header stayed inside it. Four fixes to the render path were each correct about the render
+  // path and changed nothing, because hiding the header was stated ONLY declaratively
+  // (`renderTabHeader` returns null while `minimal` holds) while every other part of compact mode is
+  // written imperatively and therefore always moved.
+  //
+  // The rule is now ALSO a CSS invariant, driven from `_emitPrefs()` — the one signal compact mode
+  // has, fired at creation, on the async host reply and on every press. A header inside the
+  // standalone container cannot display while the mode is on, whatever that container's last render
+  // drew. Three things make that hold, and each fails on its own:
+  //   1. the header carries an identity the rule can name — it had NO attribute at all before, which
+  //      is why neither a DOM count nor a stylesheet could ever reach it;
+  //   2. the rule is scoped to the standalone surface, so the docked panel keeps its headers;
+  //   3. `!important`, because the header's inline `display: flex` outranks a plain rule.
+  {
+    const t = await openCompactPanel(true)
+    // The marker is asserted on the element the REAL tree renders, in the surface where a header IS
+    // drawn. Read out of the source string it would survive the element being renamed.
+    const drawn = []
+    walkEl(renderPanelElement(t, false), (el) => {
+      if (el.props && el.props['data-dock-flash-tab-header'] !== undefined) drawn.push(el.props)
+    })
+    check('a drawn tab header carries the attribute the compact rule targets',
+      drawn.length > 0, `${drawn.length} headers in the rendered docked tree`)
+    check('...and the marker never lands on the compact chip, which must stay visible',
+      drawn.every((p) => p['data-dock-flash-tab'] === undefined),
+      JSON.stringify(drawn.map((p) => Object.keys(p))))
+
+    const tag = t.sb.document.getElementById('dock-flash-compact-css')
+    const css = tag ? String(tag.textContent || '') : ''
+    check('compact mode installs its CSS invariant while the preference is on', !!tag,
+      'no #dock-flash-compact-css style tag — the rule is back to needing a re-render')
+    check('...scoped to the STANDALONE container, so the docked panel keeps its headers',
+      css.includes('[data-dsh-plugin="dock-flash-standalone"]') &&
+      css.includes('[data-dock-flash-tab-header]'), css)
+    check('...with !important, because the header inline display outranks a plain rule',
+      /display\s*:\s*none\s*!important/.test(css), css)
+    const tagCount = t.sb.document.head.descendants()
+      .filter((e) => e.tagName === 'STYLE' && e.id === 'dock-flash-compact-css').length
+    check('...and exactly ONE tag across every emit, so the writer is idempotent',
+      tagCount === 1, `count=${tagCount}`)
+
+    // Compact OFF removes the tag rather than leaving a disabled rule behind (Critical Rule 2), and
+    // the press that flips the mode is the thing that must do it.
+    const btn = t.sb.document.body.descendants()
+      .find((e) => e.getAttribute('data-dock-flash-compact') !== null)
+    check('the header button is there to flip the mode', !!btn, 'no compact button found')
+    if (btn) btn.dispatch('click', t.ev(1))
+    await new Promise((r) => setTimeout(r, 20))
+    check('turning compact OFF removes the rule outright, never merely disables it',
+      t.sb.document.getElementById('dock-flash-compact-css') === null,
+      String((t.sb.document.getElementById('dock-flash-compact-css') || {}).textContent))
+  }
 }
 
 console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stands down only while a host CLAIMS it ===')
@@ -3871,7 +3939,11 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
     const doc = Object.assign({}, documentStub, {
       body,
       querySelectorAll: (s) => [...body.querySelectorAll(s), ...head.querySelectorAll(s)],
-      getElementById: (id) => body.descendants().find((e) => e.id === id) || null,
+      // A real `document.getElementById` searches the WHOLE document, as `documentStub` does. A
+      // body-only search makes a style tag appended to `head` invisible to the id lookup that
+      // guards its creation, so an idempotent writer appends a fresh tag on every pass.
+      getElementById: (id) => body.descendants().find((e) => e.id === id) ||
+        head.descendants().find((e) => e.id === id) || null,
       addEventListener() {}, removeEventListener() {},
       __fire() {},
     })
