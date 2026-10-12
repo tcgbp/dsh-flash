@@ -4044,6 +4044,92 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
     't(title)=' + c.sb.window.__dockFlashPanelService().i18n.t('title'))
 }
 
+// ── 30. a detach/re-attach cycle leaves ONE panel, and the gestures still work ──
+console.log('\n=== 30. detach/re-attach: exactly one container, and the gestures survive the remount ===')
+{
+  // The comment in `mountStandaloneSlotTrigger()` used to claim that a
+  // detach/re-attach cycle "leaves exactly one panel on screen". Nothing here
+  // could falsify that, which is how the reported defect shipped:
+  //
+  //   `_unmountCoreStandalone()` clears its holder BEFORE calling `dispose()` and
+  //   swallows a throw, so an abandoned teardown leaves its container in `<body>`
+  //   AND frees the holder. The next mount closes over its own `panelContainer`,
+  //   so `if (panelContainer) return` cannot see the orphan — one extra panel per
+  //   cycle, each frozen at its last render, so a full tab header on an orphan
+  //   never follows a later compact switch. Both reported symptoms, one mechanism.
+  //
+  // Two assertions below are RED without the sweep in `ensurePanelContainer()`,
+  // because an assertion that passes either way guards nothing: a container left
+  // behind by an abandoned teardown is removed when the next one is created, so
+  // the one-container rule is an invariant of the MOUNT rather than a property of
+  // a teardown that might have thrown.
+  //
+  // The gesture assertions that come FIRST are green either way, and stay because
+  // they pin something the sweep does not cover: a remounted panel is wired to the
+  // document again, so Escape reaches it. They are regression guards, not a
+  // reproduction of the reported defect — say which one an assertion is, or a
+  // passing suite reads as coverage it does not have.
+  const hostSvc = sandbox.window.__dockFlashHost()
+  const panels = () => body.descendants().filter((e) => e.getAttribute('data-dsh-plugin') === 'dock-flash-standalone')
+  const bolt = () => sandbox.document.getElementById('dock-flash-overlay-trigger')
+
+  const b = bolt()
+  tap(b)
+  const opened = panels()
+  check('the panel opens with EXACTLY one standalone container', opened.length === 1,
+    'containers=' + opened.length)
+
+  // The gesture, on a clean page and BEFORE any stray container is planted.
+  // Escape is a document-level listener, so it is the cheapest proof that the
+  // remounted panel is wired to the document again. Running it first is what lets
+  // it name its own cause: measured against a page already holding a stray
+  // container, a failure here could not be told apart from the sweep below.
+  hostSvc.claim()
+  hostSvc.release()
+  tap(bolt())
+  const remounted = panels()
+  check('a clean detach/re-attach cycle leaves one container, open',
+    remounted.length === 1 && remounted[0].style.display === 'flex',
+    'containers=' + remounted.length + ' display=' + (remounted[0] && remounted[0].style.display))
+  sandbox.document.__fire('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} })
+  check('...and Escape closes the REMOUNTED panel — it is wired to the document again',
+    remounted.length === 1 && remounted[0].style.display === 'none',
+    remounted.length === 1 ? remounted[0].style.display : 'containers=' + remounted.length)
+
+  // The orphan, planted rather than produced: the harness cannot make the real
+  // teardown throw, and the fix must not depend on it throwing. A container
+  // carrying our own attribute, attached to <body>, held by nobody — exactly what
+  // an abandoned teardown leaves behind.
+  const orphan = new El('div')
+  orphan.setAttribute('data-dsh-plugin', 'dock-flash-standalone')
+  body.appendChild(orphan)
+  check('...two containers exist once the orphan is planted (the precondition)',
+    panels().length === 2, 'containers=' + panels().length)
+
+  // The cycle a dock-hidden setting change drives: claim → standalone torn down →
+  // release → standalone mounted again.
+  hostSvc.claim()
+  hostSvc.release()
+  const b2 = bolt()
+  check('...and the remount offers its own ⚡', !!b2)
+  tap(b2)
+  const afterCycle = panels()
+  check('a re-mount SWEEPS the abandoned container rather than adding a third',
+    afterCycle.length === 1 && afterCycle[0] !== orphan,
+    'containers=' + afterCycle.length + ' orphanStillMounted=' + (orphan.parentNode !== null))
+
+  // Three more cycles, because a leak that appears on the first is trivial and
+  // one that appears on the third is a closed-over reference nobody thought to
+  // clear. The count is the whole assertion.
+  for (let i = 0; i < 3; i++) { hostSvc.claim(); hostSvc.release() }
+  tap(bolt())
+  check('...and three further cycles still leave exactly one container, not one per cycle',
+    panels().length === 1, 'containers=' + panels().length)
+
+  // Leave the page as section 6 left it: no panel on screen.
+  sandbox.document.__fire('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} })
+}
+
 console.log('\n' + (failures.length === 0 ? '✅ ALL CHECKS PASSED' : '❌ FAILURES: ' + failures.join('; ')))
 // The bundle installs its own intervals (skin refresh, host-preference poll), so
 // exit explicitly rather than waiting for the event loop to drain.
