@@ -124,6 +124,8 @@ This hint does NOT create a hard dependency. When dsh-flash is absent, the entry
 | `select` | `getValue()`, `setValue(any)`, `options` | Dropdown select |
 | `buttongroup` | `getValue()`, `setValue(any)`, `options` | Button group |
 | `action` | `run()` | Action button |
+| `number` | `getValue()`, `setValue(number)` | Numeric input field. Optional `min`, `max`, `step` (defaults `0`, `9999`, `1`), `unit`, `formatLabel(n)`, `placeholder`, `onCommit()` |
+| `log` | `getLines()` | Read-only multi-line output block. Optional `hideWhenEmpty` (render nothing while there are no lines), `getMeta()` (right-aligned header status), `emptyText()`, `onClear()` + `clearTitle` (renders a ✕ button) |
 
 ### Full Switch Definition
 
