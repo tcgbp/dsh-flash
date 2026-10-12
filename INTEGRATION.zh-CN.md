@@ -124,6 +124,8 @@ exports.apply = function (ctx) {
 | `select` | `getValue()`, `setValue(any)`, `options` | 下拉选择 |
 | `buttongroup` | `getValue()`, `setValue(any)`, `options` | 按钮组 |
 | `action` | `run()` | 动作按钮 |
+| `number` | `getValue()`, `setValue(number)` | 数字输入框。可选 `min`、`max`、`step`（默认 `0`、`9999`、`1`）、`unit`、`formatLabel(n)`、`placeholder`、`onCommit()` |
+| `log` | `getLines()` | 只读多行输出块。可选 `hideWhenEmpty`（无内容时整块不渲染）、`getMeta()`（右对齐的状态文本）、`emptyText()`、`onClear()` + `clearTitle`（渲染 ✕ 清除按钮） |
 
 ### 完整开关定义
 
