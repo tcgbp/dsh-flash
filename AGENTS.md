@@ -655,5 +655,7 @@ full re-derivation of the skin fix. Commits, not releases: the two gates above s
 ### Where the history lives
 
 The release-by-release narrative is in **`CHANGELOG.md`**. It used to live here as a
-table, and by 1.0.10 that table was 18 KB — 28% of this file, and past the point
-where it earned its place next to the rules. Add new rows there, not here.
+table, and by 1.0.10 of the predecessor `dock-flash` package — that numbering is not
+this package's, see the note above the `Versions` table — the table was 18 KB, 28% of
+this file, and past the point where it earned its place next to the rules. Add new
+rows there, not here.
