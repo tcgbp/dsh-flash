@@ -4128,6 +4128,19 @@ console.log('\n=== 30. detach/re-attach: exactly one container, and the gestures
 
   // Leave the page as section 6 left it: no panel on screen.
   sandbox.document.__fire('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} })
+
+  // `__dockFlashHeaders()` is the probe a user is asked to run in the browser, so the one
+  // failure it must never have is throwing while trying to report. The harness cannot assert
+  // WHAT it reports — the React stub invokes the panel component but renders nothing to the
+  // stub DOM, so there are no boxes here to measure. It can assert the probe survives a call,
+  // which is what a `ReferenceError` inside it would otherwise cost: a diagnosis attempt that
+  // produces nothing but a console error.
+  const headers = sandbox.window.__dockFlashHeaders && sandbox.window.__dockFlashHeaders()
+  check('__dockFlashHeaders() answers without throwing', !!headers && Array.isArray(headers.containers))
+  // The render counter is the half the DOM cannot answer, so it is checked where it CAN be:
+  // the stub does invoke the panel component, so a standalone render must have been counted.
+  check('__dockFlashHeaders() counts the standalone renders it saw',
+    !!headers && headers.renders.count.standalone > 0)
 }
 
 console.log('\n' + (failures.length === 0 ? '✅ ALL CHECKS PASSED' : '❌ FAILURES: ' + failures.join('; ')))
