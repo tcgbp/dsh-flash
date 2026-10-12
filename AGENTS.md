@@ -44,8 +44,15 @@ Docs: `README.md` / `README.zh-CN.md` (English is canonical), `INTEGRATION.md` /
 `INTEGRATION.zh-CN.md` (third-party guide), `CHANGELOG.md` (history), `AGENTS.md` (this file).
 `docs/`: `critical-rules.md` (the full text behind the numbered rules below), `switch-reference.md`
 (every optional switch field), `architecture-notes.md` (the "why" and the measurements),
-`testing-checklist.md`, `releasing.md`, `skin-system.md`, `panel-ordering.md`. `scripts/`:
+`testing-checklist.md`, `releasing.md`, `skin-system.md`, `panel-ordering.md`,
+`refactor-coupling-map.md` (what has been extracted into which companion plugin). `scripts/`:
 `check-docs-size.mjs` (`pnpm run check:docs`), `check-overlay-mount.mjs` (`pnpm run check:overlay`).
+
+Three further files under `docs/` are **history, not reference**, and are deliberately not linked from
+here: `handoff-phase1.md` and `refactor-plan-core-adapter-split.md` (the core/adapter split, shipped and
+released — the handoff names its own deletion condition) and `内存告警指标.md` (a design note for the
+memory monitor's thresholds, which now lives in `dsh-flash-mem-mon`). Do not cite any of the three as
+current behaviour of this package.
 
 - **Host half** (`src/index.ts`): compiled via `pnpm run build` (tsc). Touch only this file for host-side changes.
 - **Client half** (`lib/client.js`): single monolithic file, edited directly — no build, no bundler, no TypeScript. Changes take effect on page refresh (symlinked in profile).
