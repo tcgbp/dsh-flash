@@ -3978,11 +3978,12 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stan
   }
   const headerKids = kidsFrom({ wb: fakeWb })
   const headerViaCtx = kidsFrom({ ctx: { get: (n) => (n === 'workbench' ? fakeWb : undefined) } })
-  check('the service\'s header is the CORE\'s header: two buttons, close-on-blur glyph on the first',
-    Array.isArray(headerKids) && headerKids.length === 2
+  check('the service\'s header is the CORE\'s header: close-on-blur, a reload page, and ×',
+    Array.isArray(headerKids) && headerKids.length === 3
       && /M3\.65 3\.25h4\.7/.test(headerKids[0].props.dangerouslySetInnerHTML.__html)
-      && headerKids[1].props.children === '×'
-      && Array.isArray(headerViaCtx) && headerViaCtx.length === 2,
+      && headerKids[1].props['aria-label'] === 'Reload page'
+      && headerKids[2].props.children === '×'
+      && Array.isArray(headerViaCtx) && headerViaCtx.length === 3,
     'viaWb=' + (headerKids ? headerKids.length : 'none')
       + ' viaCtx=' + (headerViaCtx ? headerViaCtx.length : 'none'))
   const notified = []
