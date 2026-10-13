@@ -3660,6 +3660,18 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
         && /\.\.\.\(desc \? \{ title: desc \} : \{\}\)/.test(code),
       'the compact label column no longer names itself (and its description) on hover')
 
+    // ── (e2) the compact icon is BIG, so it reads against the control's height ────────────
+    // With the label text dropped the glyph is the row's whole face. Pinned at the source for the
+    // same reason as (e): this harness renders no DOM, so glyph size is unobservable behaviourally.
+    // The point this pins: compact mode draws the icon at MINIMAL_ICON_SIZE (~18px, matching the
+    // ~20px toggle next to it) and passes that size INTO the SVG drawbox — a width override alone
+    // would leave the 12px drawbox centered in a wider box and change nothing visual.
+    check('the compact icon chip is drawn at MINIMAL_ICON_SIZE while the full panel keeps the 12px glyph (source pin)',
+      /var MINIMAL_ICON_SIZE = 18/.test(code)
+        && /minimalIconEl = \(minimal && iconEl\)/.test(code)
+        && /_switchIcon\(sw\.icon, \{ \.\.\.S\.switchIcon, width: MINIMAL_ICON_SIZE \+ 'px', fontSize: MINIMAL_ICON_SIZE \+ 'px' \}, MINIMAL_ICON_SIZE\)/.test(code),
+      'the compact icon column no longer draws the demure 12px glyph')
+
     check('...and it writes ONLY that field, through the three-argument host call',
       !!written && Object.keys(written).length === 1
         && t.updates.some((a) => a[0] === 'dock-flash' && a.length === 3),
