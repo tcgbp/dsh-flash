@@ -716,7 +716,7 @@ console.error = origError
 const registry = provided.quickControl
 check('the plugin published its quickControl registry', !!registry && typeof registry.registerSwitch === 'function')
 
-check('apply() reported no [dock-flash] failure', errors.length === 0, errors.join(' | ') || 'none')
+check('apply() reported no [dsh-flash] failure', errors.length === 0, errors.join(' | ') || 'none')
 check('apply() reached ctx.inject([\'slots\']) — the overlay did not throw past it',
   injectCalls.length === 2 && injectCalls[0][0] === 'locale' && injectCalls[1][0] === 'slots',
   JSON.stringify(injectCalls))
@@ -857,7 +857,7 @@ const tap = (el, x = 1236, y = 84) => {
 // Captured across every gesture below, because each open RE-RENDERS the panel and
 // `renderPanel()` swallows a throw into console.error.
 const renderErrors = []
-/** `[dock-flash]` warnings captured for the whole run. A refusal is reported this
+/** `[dsh-flash]` warnings captured for the whole run. A refusal is reported this
  *  way rather than as an error, so the assertion needs the warning channel. */
 const warnings = []
 const origWarn = console.warn
@@ -2670,7 +2670,7 @@ console.log('\n=== 23. a describe() that is NOT a promise must not kill the plug
   // WHY IT LOOKS LIKE THE PLUGIN DISAPPEARED, and why the assertions below are
   // about COMPLETION rather than about a throw:
   //   - dock-flash's own `apply()` wraps its body in try/catch and logs
-  //     "[dock-flash] apply failed:". The throw therefore does NOT fail the
+  //     "[dsh-flash] apply failed:". The throw therefore does NOT fail the
   //     fiber — it ABORTS THE REMAINDER of apply(), which at that point has not
   //     yet called `ctx.provide('quickControl', …)`, registered a single switch,
   //     or mounted the panel. The plugin still reads as loaded, and nothing of
