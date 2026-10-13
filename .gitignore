@@ -40,3 +40,9 @@ CLAUDE.md
 .graphflow/
 graphflow-out/
 pnpm-lock.yaml
+
+# Archify diagram outputs — generated `.archify/<type>-<slug>-<timestamp>/` folders
+# (interactive HTML diagrams, candidate JSON, delivery receipts and captures). They are
+# AI-assistant authoring artifacts, not part of the published plugin (`files` in
+# package.json does not list them either).
+.archify/
