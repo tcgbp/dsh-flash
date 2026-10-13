@@ -3395,6 +3395,35 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
           ? 'tablists=' + dockedTablists + ' tabs=' + dockedTabs
           : 'docked panel did not render')
     }
+    // ── the missing-companion nag is TEXT, so compact mode drops it ──────────────────────────
+    // The companions report is a `log` block: a titled multi-line report, never an icon-only chip.
+    // Compact mode strips text (group titles, tab headers, the changes log) but keeps icons — so
+    // the nag belongs to the full panel and the full panel only. It stays REGISTERED in compact
+    // mode (still fills its lines, still notifies) and is only not drawn; the switch is what is
+    // hidden, not the report. Register the log switch with lines on the same registry the compact
+    // panel just rendered, then render both surfaces and assert the block is absent in compact and
+    // present in full.
+    if (t.reg) {
+      const removedLogs = []
+      t.reg.registerSwitch({ id: 'harness:missing-yardstick', label: '缺少的配套插件', icon: 'message',
+        type: 'log', group: 'system', order: 95,
+        getLines: () => ['dsh-flash-ctx-mon  not installed'],
+        getMeta: () => '1 not running', onClear: () => { removedLogs.push(true) } })
+      const compactWithLog = renderPanelElement(t)
+      const fullWithLog = renderPanelElement(t, false)
+      const hasLog = (tree) => {
+        let found = 0
+        if (tree) walkEl(tree, (el) => {
+          if (el.props && (el.props['data-switch-id'] === 'harness:missing-yardstick'
+            || el.props['data-switch-id'] === 'dock-flash:companions-missing')) found += 1
+        })
+        return found
+      }
+      check('the missing-companion nag (a text log) is NOT drawn in compact mode',
+        hasLog(compactWithLog) === 0, 'compact log blocks = ' + hasLog(compactWithLog))
+      check('...but it IS drawn in the full panel, where text belongs',
+        hasLog(fullWithLog) >= 1, 'full log blocks = ' + hasLog(fullWithLog))
+    }
     // ── the SURFACE gate: the reported regression, pinned where it actually failed ──────────
     // The docked workbench panel is mounted by dock-base, with none of the standalone props, and
     // it must stay FULL: reading the preference unconditionally is what made it draw icon-only
