@@ -514,9 +514,20 @@ function renderTree(el, depth = 0) {
 let effectCursor = 0
 const pendingEffects = []
 const ReactStub = {
-  createElement: (type, props, ...kids) => ({
-    $$typeof: Symbol.for('react.element'), type, props: { ...(props || {}), children: kids.length <= 1 ? kids[0] : kids },
-  }),
+  // `key` is lifted out of the config and onto the ELEMENT, exactly as React does (`props.key` is
+  // never a thing, and a stub that left it in `props` would make every key assertion test the wrong
+  // place). It is also the ONLY way this harness can see a key at all: the duplicate-key defect that
+  // put one more tab header on screen per compact round trip lived entirely in this property, and a
+  // stub that dropped it could not have stated the invariant that prevents it.
+  createElement: (type, props, ...kids) => {
+    const { key, ...rest } = props || {}
+    return {
+      $$typeof: Symbol.for('react.element'),
+      type,
+      key: key === undefined ? null : key,
+      props: { ...rest, children: kids.length <= 1 ? kids[0] : kids },
+    }
+  },
   Component: class { constructor(p) { this.props = p || {}; this.state = {} } setState(s) { Object.assign(this.state, s) } render() { return null } },
   // React calls a lazy initialiser; the panel relies on that (`useState(() => new Set(…))`),
   // so a stub that returned the function itself made `openTabs.has` throw.
@@ -3698,6 +3709,91 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
     check('turning compact OFF removes the rule outright, never merely disables it',
       t.sb.document.getElementById('dock-flash-compact-css') === null,
       String((t.sb.document.getElementById('dock-flash-compact-css') || {}).textContent))
+
+    // ── (h) no two SIBLINGS may share a key ─────────────────────────────────────────────────
+    // The reported defect this guards: toggling compact mode once (on → off) left ONE MORE 工作台
+    // tab header in the FULL panel, and every further round trip added another. The cause was a
+    // duplicate React `key`, not a stray container: the page wrapper draws [header, body]
+    // positionally and BOTH carried `key: page.id` — the same id. React's own wording is the whole
+    // mechanism: "Non-unique keys may cause children to be duplicated and/or omitted — the behavior
+    // is unsupported and could change in a future version." It duplicated: each re-insert of the
+    // header left the previous header node in the DOM. Compact mode's CSS rule HID the strays
+    // (`display:none !important`), so the mode always looked clean and the growth only ever showed
+    // in the full panel — which is why the fix is structural rather than another hide.
+    //
+    // MEASURED before the fix, with the real bundle under jsdom + React 18.3.1: 1 header → 2 → 3 → 4
+    // across three round trips, with React logging `Encountered two children with the same key,
+    // workbench` on exactly the commits that added one. A stable 1 after it.
+    //
+    // This harness's React is a STUB that never touches a DOM, so it cannot reproduce the
+    // duplication itself. What it CAN do is assert the invariant that makes the keyed-reconciliation
+    // path which duplicated a node unreachable: sibling keys are unique. That is a structural guard,
+    // NOT a reproduction of the symptom — a pass here is not proof the DOM stays clean.
+    {
+      const tree = renderPanelElement(t, true)
+      check('the panel tree renders for the sibling-key assertion', !!tree)
+      /** Sibling keys below `el`, recursively. Only elements CARRYING a key take part in React's
+       *  keyed matching, so only those are collected — and the key lives on the ELEMENT (set by
+       *  `createElement`), never inside `props`, so `props.key` is not a thing to test for.
+       *  `key === null` means "no key" (React's own spelling), not a key named "null". */
+      const hasKey = (k) => k && typeof k === 'object'
+        && (typeof k.key === 'string' || typeof k.key === 'number')
+      const siblingKeyGroups = (el, out = [], depth = 0) => {
+        if (!el || typeof el !== 'object' || depth > 40) return out
+        if (Array.isArray(el)) {
+          for (const c of el) siblingKeyGroups(c, out, depth + 1)
+          return out
+        }
+        const kids = el.props ? el.props.children : undefined
+        if (Array.isArray(kids)) {
+          const keys = kids.filter(hasKey).map((k) => String(k.key))
+          if (keys.length > 1) out.push({ type: el.type, keys })
+          for (const c of kids) siblingKeyGroups(c, out, depth + 1)
+        } else if (kids) {
+          siblingKeyGroups(kids, out, depth + 1)
+        }
+        return out
+      }
+      /** The page wrappers: the only elements whose direct children are [tab header, tab body].
+       *  `S.tabPageBodyJoined` is the body's marker — a `borderTop: 'none'` under a shared hairline,
+       *  which is what makes it the body rather than any other bordered box in the tree. It is
+       *  deliberately NOT matched by class or by key, because the key is the thing under test. */
+      const isTabBody = (p) => !!(p && p.style && p.style.borderTop === 'none' && p.style.borderRadius)
+      const pageWrappers = (el, out = [], depth = 0) => {
+        if (!el || typeof el !== 'object' || depth > 40) return out
+        if (Array.isArray(el)) { for (const c of el) pageWrappers(c, out, depth + 1); return out }
+        const kids = el.props ? el.props.children : undefined
+        if (Array.isArray(kids)) {
+          const hdr = kids.find((k) => k && k.props && k.props['data-dock-flash-tab-header'] !== undefined)
+          const body = kids.find((k) => k && k.props && isTabBody(k.props))
+          if (hdr && body) out.push({ hdr, body, kids })
+        }
+        if (kids) pageWrappers(kids, out, depth + 1)
+        return out
+      }
+      const groups = tree ? siblingKeyGroups(tree) : []
+      const offenders = groups.filter((g) => new Set(g.keys).size !== g.keys.length)
+      check('no two siblings in the panel share a key — duplicate keys are what duplicated the header',
+        offenders.length === 0,
+        offenders.map((o) => o.type + ' ' + JSON.stringify(o.keys)).join(' | ') ||
+          groups.length + ' keyed sibling groups, all unique')
+      // A guard that can never fire guards nothing: if no element in the whole tree has TWO keyed
+      // children, the assertion above is vacuous (the pre-fix collision was exactly such a pair).
+      const multiKeyed = groups.filter((g) => g.keys.length > 1)
+      check('...and the tree really does contain elements with several keyed children (the assertion bites)',
+        multiKeyed.length > 0,
+        groups.length + ' keyed groups, ' + multiKeyed.length + ' with 2+ keys')
+      const wraps = tree ? pageWrappers(tree) : []
+      check('...and a page wrapper draws exactly [header, body], positionally',
+        wraps.length > 0 && wraps.every((w) => w.kids.filter(Boolean).length === 2),
+        'wrappers=' + wraps.length + ' childCounts=' +
+          JSON.stringify(wraps.map((w) => w.kids.filter(Boolean).length)))
+      // `null` is React's spelling for "no key" (and this harness's stub follows it), so the test is
+      // the absence of a STRING/NUMBER key — `undefined` alone would pass on a stub that used null.
+      check('...and the body carries NO key, because the header already holds `page.id`',
+        wraps.length > 0 && wraps.every((w) => !hasKey(w.body)),
+        'body keys=' + JSON.stringify(wraps.map((w) => (hasKey(w.body) ? w.body.key : '(none)'))))
+    }
   }
 }
 
