@@ -3237,7 +3237,8 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
     // Two ADJACENT toggle-only switches, which are what compact mode should pair onto one row.
     // Order 210/211 and both in `system`, so nothing can come between them.
     reg.registerSwitch({ id: 'harness:toggle-a', label: 'toggle A', type: 'toggle', group: 'system',
-      order: 210, icon: 'eye', getValue: () => true, setValue: () => {} })
+      order: 210, icon: 'eye', getValue: () => true, setValue: () => {},
+      config: () => {} })
     reg.registerSwitch({ id: 'harness:toggle-b', label: 'toggle B', type: 'toggle', group: 'system',
       order: 211, icon: 'clock', getValue: () => false, setValue: () => {} })
     // Open it: the standalone trigger is the double-click target, and opening renders the panel —
@@ -3590,8 +3591,28 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       const langRow = langRows[langRows.length - 1]
       const langStyle = (langRow && langRow.props && langRow.props.style) || {}
       check('the compact language row centers its control instead of shoving it right',
-        langRows.length >= 1 && langStyle.justifyContent === 'center',
-        'rows=' + langRows.length + ' justifyContent=' + JSON.stringify(langStyle.justifyContent))
+        langRows.length >= 1 && langStyle.justifyContent === 'center' && langStyle.columnGap === '0px',
+        'rows=' + langRows.length + ' justifyContent=' + JSON.stringify(langStyle.justifyContent)
+          + ' columnGap=' + JSON.stringify(langStyle.columnGap))
+    }
+    // The config button on an ON toggle is a real element in the same rendered tree: in
+    // compact mode its ⚙ must sit on the strip's 18px icon baseline, not the full panel's
+    // 16px — same key set as the base, only `fontSize` differs. Find the `harness:toggle-a`
+    // row (ON, has `config`); its only <button> is the config button, so read its inline
+    // style straight off the tree.
+    {
+      const cfgTree = renderPanelElement(t)
+      let cfgBtnStyle = null
+      if (cfgTree) walkEl(cfgTree, (el) => {
+        if (el.props && el.props['data-switch-id'] === 'harness:toggle-a' && el.type === 'div') {
+          walkEl(el, (c) => {
+            if (c.type === 'button') cfgBtnStyle = c.props.style
+          })
+        }
+      })
+      check('the ON toggle\u2019s compact config button uses the 18px icon baseline',
+        !!cfgBtnStyle && cfgBtnStyle.fontSize === '18px',
+        'fontSize=' + JSON.stringify(cfgBtnStyle && cfgBtnStyle.fontSize))
     }
     check('...and the strip is where the surviving page keeps its entry point',
       !!snap && snap.compact.headerlessPages.includes('extensions')
