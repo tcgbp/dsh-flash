@@ -567,8 +567,8 @@ and passed on a button nobody could click. Full procedure:
 
 ### Key Observation Points
 
-- **Browser DevTools console**: `[dock-flash]` prefixed logs for client-side events
-- **Host process console**: `[dock-flash]` prefixed logs for host-side events
+- **Browser DevTools console**: `[dsh-flash]` prefixed logs for client-side events
+- **Host process console**: `[dsh-flash]` prefixed logs for host-side events
 - **localStorage**: Check `dock-flash:active-skin` key for skin persistence
 - **DOM**: Inspect `<style data-plugin>`, `<style data-skin-chrome>`, and `data-dsh-*` attributes for skin state
 
