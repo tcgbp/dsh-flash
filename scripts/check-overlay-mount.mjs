@@ -3576,6 +3576,23 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       JSON.stringify(snap && snap.compact.iconless))
     check('...and no other row loses its icon',
       !!snap && snap.compact.iconless.length === 1, JSON.stringify(snap && snap.compact.iconless))
+    // An iconless row has an EMPTY (zero-width) label column, so the row's default
+    // `space-between` would shove the lone button group flush against the right edge —
+    // exactly the "偏右" symptom. The fix centers the control in that case. Assert the
+    // INLINE STYLE on the real rendered tree, not just the snapshot: this is where the
+    // bug lived, and it is the only check that can tell "centered" from "shoved right".
+    {
+      const langTree = renderPanelElement(t)
+      const langRows = []
+      if (langTree) walkEl(langTree, (el) => {
+        if (el.props && el.props['data-switch-id'] === 'dock-flash:language') langRows.push(el)
+      })
+      const langRow = langRows[langRows.length - 1]
+      const langStyle = (langRow && langRow.props && langRow.props.style) || {}
+      check('the compact language row centers its control instead of shoving it right',
+        langRows.length >= 1 && langStyle.justifyContent === 'center',
+        'rows=' + langRows.length + ' justifyContent=' + JSON.stringify(langStyle.justifyContent))
+    }
     check('...and the strip is where the surviving page keeps its entry point',
       !!snap && snap.compact.headerlessPages.includes('extensions')
         && snap.compact.tabStripPages.includes('extensions'),
