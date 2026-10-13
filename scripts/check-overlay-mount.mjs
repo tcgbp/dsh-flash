@@ -3424,6 +3424,33 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       check('...but it IS drawn in the full panel, where text belongs',
         hasLog(fullWithLog) >= 1, 'full log blocks = ' + hasLog(fullWithLog))
     }
+    // ── the compact icon tooltip carries the ORIGINAL description ──────────────────────────
+    // Compact mode strips the subtitle/tooltip lines an icon-only row would otherwise lose, and
+    // the tooltip (`title` on the icon column) is where the original description stays reachable
+    // from a 12px glyph. This is the behavioural half of the source pin in (e): register a toggle
+    // that carries BOTH a subtitle and a tooltip, render the compact tree, and assert the column's
+    // title is the joined description — not the bare name.
+    if (t.reg) {
+      t.reg.registerSwitch({ id: 'harness:described-tooltip', label: 'Gizmo', icon: 'gear', type: 'toggle',
+        group: 'system', order: 98,
+        subtitle: () => 'https://example.local/path',
+        tooltip: 'Turns the gizmo on and off',
+        getValue: () => false, setValue: () => {} })
+      const compactTree = renderPanelElement(t)
+      let targetRows = 0
+      let sawDescription = false
+      if (compactTree) walkEl(compactTree, (el) => {
+        if (el.props && el.props['data-switch-id'] === 'harness:described-tooltip') targetRows += 1
+        // The title lives on the label COLUMN inside the row, not the row itself; the exact
+        // joined string is unique to this harness switch, so its presence is the assertion.
+        if (el.props && el.props.title === 'Gizmo — https://example.local/path — Turns the gizmo on and off') {
+          sawDescription = true
+        }
+      })
+      check('a compact icon chip for a described switch exposes the original description as its title',
+        targetRows === 1 && sawDescription,
+        'targetRows=' + targetRows + ' descriptionInTitle=' + sawDescription)
+    }
     // ── the SURFACE gate: the reported regression, pinned where it actually failed ──────────
     // The docked workbench panel is mounted by dock-base, with none of the standalone props, and
     // it must stay FULL: reading the preference unconditionally is what made it draw icon-only
@@ -3620,14 +3647,18 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       !!written && written.compactPanel === false,   // it was true, so it must now be false
       JSON.stringify(written))
     // ── (e) the tooltip: a SOURCE pin, and it says so ──────────────────────────────────────
-    // An icon-only row has to be able to name itself on hover, and that `title` lives in the
+    // An icon-only row has to be able to say what it is on hover, and that `title` lives in the
     // rendered tree — which this harness cannot see. `renderTree()` only INVOKES components; it
     // never materializes them into an `El`, so there is no DOM to query `title` from. Pinned at
-    // the source rather than dressed up as behavioural evidence.
-    check('the compact row carries its name as a tooltip (source pin — this harness renders no DOM)',
+    // the source rather than dressed up as behavioural evidence. The point this pins: compact mode
+    // drops the row's subtitle/tooltip text, so the tooltip must carry the ORIGINAL description
+    // (label → subtitle → tooltip, joined), not merely the short name — an icon that cannot show
+    // the description it used to print is a puzzle.
+    check('the compact row carries its name AND its original description as a tooltip (source pin — this harness renders no DOM)',
       /const name = typeof sw\.label === 'function' \? sw\.label\(\) : sw\.label/.test(code)
-        && /\{ title: String\(name\) \}/.test(code),
-      'the compact label column no longer names itself on hover')
+        && /const desc = \[name, sub, tip\]\.filter\(Boolean\)\.join\(' — '\)/.test(code)
+        && /\.\.\.\(desc \? \{ title: desc \} : \{\}\)/.test(code),
+      'the compact label column no longer names itself (and its description) on hover')
 
     check('...and it writes ONLY that field, through the three-argument host call',
       !!written && Object.keys(written).length === 1
