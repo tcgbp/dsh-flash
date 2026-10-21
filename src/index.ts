@@ -32,7 +32,7 @@ import type { Volatile } from '@deepseek-ai/cordis'
 // Default export only (`export default Schema`); there is no named `Schema`.
 import Schema from '@deepseek-ai/schemastery'
 
-export const name = 'dock-flash'
+export const name = 'dsh-flash'
 
 // No host-side service dependencies; all services are injected lazily.
 export const inject: string[] = []
@@ -174,6 +174,126 @@ const DEFAULT_OVERLAY_OPACITY = 0.55
 const DEFAULT_HOST_ALERT_QUEUE_CAP = 50
 /** Host alert maximum retention time (hours). */
 const DEFAULT_HOST_ALERT_MAX_AGE = 24
+
+// ── ns migration: dock-flash → dsh-flash ─────────────────────────────────
+// The plugin id (= the settings namespace the client writes through
+// `settings.update(ns, …)`) is being renamed from `dock-flash` to `dsh-flash`
+// to match the package name. Existing user preferences already live in
+// settings.yaml under the OLD `dock-flash` namespace; MIGRATE_FIELDS is the
+// field-by-field plan for copying them into the new namespace so no panel
+// config is lost. Each entry names the Config field and a predicate for "this
+// value is still the default", which the migration reads BOTH directions on:
+// a field is copied only when the OLD ns holds a non-default value AND the NEW
+// ns still reads as default/absent.
+
+/** A `panelOrder` value that matches DEFAULT_PANEL_ORDER (all empty). */
+function isDefaultPanelOrder(v: unknown): boolean {
+  if (!v || typeof v !== 'object') {
+    // Absent / null reads as "never touched" — treated as default.
+    return true
+  }
+  const o = v as { builtin?: unknown; ext?: unknown; switches?: unknown; hidden?: unknown }
+  const e = (a: unknown) => Array.isArray(a) && a.length === 0
+  const oEm = (a: unknown) => !a || (typeof a === 'object' && Object.keys(a as object).length === 0)
+  return e(o.builtin) && e(o.ext) && oEm(o.switches) && oEm(o.hidden)
+}
+
+/** A `triggerOverlayOffset` value that matches DEFAULT_TRIGGER_OVERLAY_OFFSET. */
+function isDefaultOverlayOffset(v: unknown): boolean {
+  if (!v || typeof v !== 'object') return true
+  const o = v as { dx?: unknown; dy?: unknown }
+  return o.dx === DEFAULT_TRIGGER_OVERLAY_OFFSET.dx && o.dy === DEFAULT_TRIGGER_OVERLAY_OFFSET.dy
+}
+
+const MIGRATE_FIELDS: ReadonlyArray<{ key: string; isDefault(v: unknown): boolean }> = [
+  { key: 'panelOrder', isDefault: isDefaultPanelOrder },
+  { key: 'activeSkin', isDefault: (v) => v == null || v === DEFAULT_ACTIVE_SKIN },
+  { key: 'triggerPosition', isDefault: (v) => v == null || v === DEFAULT_TRIGGER_POSITION },
+  { key: 'triggerOverlayOffset', isDefault: isDefaultOverlayOffset },
+  { key: 'triggerSize', isDefault: (v) => v == null || v === DEFAULT_TRIGGER_SIZE },
+  { key: 'triggerLayer', isDefault: (v) => v == null || v === DEFAULT_TRIGGER_LAYER },
+  { key: 'overlayOpacity', isDefault: (v) => v == null || v === DEFAULT_OVERLAY_OPACITY },
+  { key: 'compactPanel', isDefault: (v) => v == null || v === false },
+  { key: 'hostAlertQueueCap', isDefault: (v) => v == null || v === DEFAULT_HOST_ALERT_QUEUE_CAP },
+  { key: 'hostAlertMaxAge', isDefault: (v) => v == null || v === DEFAULT_HOST_ALERT_MAX_AGE },
+]
+
+/**
+ * One-time, fail-open migration of persisted preferences from the legacy
+ * `dock-flash` settings namespace to the new `dsh-flash` namespace (the
+ * plugin id is being renamed to match the package name).
+ *
+ * Why this exists: prefs lived in settings.yaml under the OLD namespace; once
+ * `name` flips to `dsh-flash`, the client reads and writes the NEW namespace,
+ * so an untouched old section would be silently orphaned and the panel would
+ * forget the user's layout, skin, trigger and alert preferences. This copies
+ * them across so no config is lost.
+ *
+ * How it stays safe (a migration that breaks `apply()` is worse than none — a
+ * synchronous throw ahead of any `.catch` would abort the rest of apply, and
+ * the plugin would read as loaded with nothing on screen, Critical Rule 13):
+ *   · FAIL-OPEN — every fallible step is guarded; any error is logged and the
+ *     migration returns, leaving the old namespace intact for a later run.
+ *   · IDEMPOTENT — a field is copied only while the NEW namespace still sits
+ *     at a default AND the OLD namespace holds a non-default value. After a
+ *     successful run each new field is no longer default, so a re-run copies
+ *     nothing; a run that partially wrote is corrected by the next one.
+ *   · NON-CLOBBERING — the guard is asserted on BOTH sides (the "localStorage
+ *     disagrees with the host" lesson): a later deliberate choice in the new
+ *     namespace is never overwritten by an older value from the old one.
+ *
+ * Safe to call on every apply(); it no-ops once the migration has landed.
+ */
+async function migratePrefsFromDockFlash(
+  settings: { describe(): Array<{ ns?: string; namespace?: string; value?: unknown; user?: unknown; revision?: unknown }>; update(ns: string, patch: Record<string, unknown>, rev?: unknown): unknown },
+  log: (msg: string) => void,
+): Promise<void> {
+  // The namespace-string address is what matters, not which plugin registers
+  // it: settings.describe() surfaces every persisted section of settings.yaml,
+  // so the legacy `dock-flash` entry is still returned even though `name` is
+  // now `dsh-flash`.
+  let described: Array<{ ns?: string; namespace?: string; value?: unknown; user?: unknown; revision?: unknown }>
+  try {
+    described = settings.describe()
+  } catch (e) {
+    log(`[dsh-flash] ns migration: describe() failed (${String(e)}) — leaving legacy dock-flash prefs in place`)
+    return
+  }
+  const oldEntry = described.find((d) => (d.ns ?? d.namespace) === 'dock-flash')
+  const newEntry = described.find((d) => (d.ns ?? d.namespace) === 'dsh-flash')
+  if (!oldEntry) return // nothing persisted under the old name: nothing to migrate
+
+  const oldValue = ((oldEntry.user ?? oldEntry.value) ?? {}) as Record<string, unknown>
+  const newValue = ((newEntry?.user ?? newEntry?.value) ?? {}) as Record<string, unknown>
+
+  const patch: Record<string, unknown> = {}
+  for (const { key, isDefault } of MIGRATE_FIELDS) {
+    const had = Object.prototype.hasOwnProperty.call(oldValue, key)
+    const oldField = oldValue[key]
+    const newField = newValue[key]
+    // Copy only when the OLD ns holds a real (non-default) value and the NEW
+    // ns still reads as default/absent — never clobber a deliberate choice.
+    if (had && oldField !== undefined && !isDefault(oldField) && isDefault(newField)) {
+      patch[key] = oldField
+    }
+  }
+
+  const keys = Object.keys(patch)
+  if (keys.length === 0) return
+
+  try {
+    const rev = newEntry && typeof newEntry.revision === 'number' ? newEntry.revision : undefined
+    const result = settings.update('dsh-flash', patch, rev)
+    // Never assume it returns a Promise (Critical Rule 13): await the resolved
+    // value, but release the fiber even if it throws.
+    await Promise.resolve(result)
+    log(`[dsh-flash] ns migration: copied ${keys.join(', ')} from dock-flash → dsh-flash`)
+  } catch (e) {
+    // SETTINGS_CONFLICT means the revision moved under us — the new namespace
+    // now has user input, which is a valid outcome; just log and stop.
+    log(`[dsh-flash] ns migration: update failed (${String(e)}) — leaving legacy dock-flash prefs in place`)
+  }
+}
 
 /**
  * `dict`'s arguments are (value, key) — value schema first, contrary to how
@@ -326,12 +446,15 @@ export function apply(ctx: Context, config: FlashConfig) {
    * TWO names, because the panel and its dock integration are two packages
    * after docs/refactor-plan-core-adapter-split.md: a user installs the ADAPTER
    * (`dock-flash`), which pulls the core in as an ordinary dependency, so the
-   * profile's manifest names `dock-flash` and NOT `dsh-flash`. Matching only
-   * our own package name would decline to claim a profile we are plainly
-   * running in, and `readProfilePackages()` would fall back to directory order
-   * — the measured desktop/web bug the search order above exists to prevent.
+   * profile's manifest may name `dock-flash` (the adapter) and NOT `dsh-flash`,
+   * depending on which half is installed. Matching only our own package name
+   * would decline to claim a profile we are plainly running in, and
+   * `readProfilePackages()` would fall back to directory order — the measured
+   * desktop/web bug the search order above exists to prevent. We deliberately
+   * list BOTH names here, independent of `name` (which is the settings
+   * namespace, now `dsh-flash`).
    */
-  const PLUGIN_NAMES = ['dsh-flash', name]
+  const PLUGIN_NAMES = ['dsh-flash', 'dock-flash']
 
   // ── Memory trend collector — extracted to dsh-flash-mem-mon ──────────
 
@@ -741,6 +864,14 @@ export function apply(ctx: Context, config: FlashConfig) {
   // instance; it does not register a schema (that is `Config`'s job).
   ctx.inject(['settings'], (settingsCtx) => {
     settingsCtx.effect(() => settingsCtx.settings.configure({ auto: false }, ctx.fiber))
+    // One-time dock-flash → dsh-flash namespace migration (id = settings
+    // namespace). Fail-open: any error is logged and never aborts apply().
+    // No-op after the first successful run (see migratePrefsFromDockFlash).
+    const target = settingsCtx.settings as any
+    void migratePrefsFromDockFlash(target, (msg) => ctx.logger.warn(msg)).then(
+      () => {},
+      (e: unknown) => ctx.logger.warn(`[dsh-flash] ns migration: unexpected error (${String(e)})`),
+    )
   })
 
   // React to volatile config updates in-place. The loader's `_commitVolatile()`
