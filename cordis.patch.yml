@@ -7,12 +7,15 @@
 # PITFALL: `name` is a PACKAGE NAME (resolved via the profile's node_modules),
 # NOT a relative path.
 #
-# WHY `id` IS NOT THE PACKAGE NAME: the entry id IS the settings namespace
-# (docs/refactor-plan-core-adapter-split.md §1.4, D1=M1) — `dock-flash` is the
-# id every published preference of this panel already lives under, so keeping
-# it means a profile that upgrades across the split migrates nothing. The
-# adapter (`dock-flash`) inserts this same row, because a plain dependency is
-# hoisted but only rows are composed.
+# WHY `id` MUST MATCH `name` NOW: the entry id IS the settings namespace
+# (docs/refactor-plan-core-adapter-split.md §1.4, D1=M1 = the plugin's exported
+# `name`). This package has MOVED its id/namespace from `dock-flash` to
+# `dsh-flash` to match the package name — see the one-time host migration in
+# src/index.ts (migratePrefsFromDockFlash), which copies any prefs still
+# persisted under the legacy `dock-flash` namespace. If `id` drifts from the
+# code's `name`, DSH silently drops the whole `config:` block for this row.
+# The adapter (`dock-flash`) does NOT insert this row for the core: a plain
+# dependency is hoisted but only rows are composed, so the core ships its own.
 - insert:
-    - id: dock-flash
+    - id: dsh-flash
       name: dsh-flash
