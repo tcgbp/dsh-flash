@@ -409,6 +409,11 @@ they show up as ordinary rows — the three monitors in the **System Alerts** cl
 cluster. Install them alongside whichever of the two packages you use; without them the panel simply
 has no such rows.
 
+The **Missing companion plugins** row treats the workbench integration the same way: once `dock-base`
+is installed but the `dock-flash` adapter is absent (the empty-UI failure mode), it names `dock-flash`
+too and appends it to the same install command. Standalone-only users — no `dock-base` — are never
+nagged about it.
+
 **Other ways to install**, if npm is not what you want: a GitHub Release tarball
 (`… add https://github.com/tcgbp/dsh-flash/releases/latest/download/dsh-flash.tgz`), git
 (`… add github:tcgbp/dsh-flash`), or a local checkout (`… add ./dsh-flash` — for development, where
