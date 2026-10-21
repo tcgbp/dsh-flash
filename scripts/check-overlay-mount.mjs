@@ -3237,7 +3237,8 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
     // Two ADJACENT toggle-only switches, which are what compact mode should pair onto one row.
     // Order 210/211 and both in `system`, so nothing can come between them.
     reg.registerSwitch({ id: 'harness:toggle-a', label: 'toggle A', type: 'toggle', group: 'system',
-      order: 210, icon: 'eye', getValue: () => true, setValue: () => {} })
+      order: 210, icon: 'eye', getValue: () => true, setValue: () => {},
+      config: () => {} })
     reg.registerSwitch({ id: 'harness:toggle-b', label: 'toggle B', type: 'toggle', group: 'system',
       order: 211, icon: 'clock', getValue: () => false, setValue: () => {} })
     // Open it: the standalone trigger is the double-click target, and opening renders the panel —
@@ -3395,6 +3396,62 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
           ? 'tablists=' + dockedTablists + ' tabs=' + dockedTabs
           : 'docked panel did not render')
     }
+    // ── the missing-companion nag is TEXT, so compact mode drops it ──────────────────────────
+    // The companions report is a `log` block: a titled multi-line report, never an icon-only chip.
+    // Compact mode strips text (group titles, tab headers, the changes log) but keeps icons — so
+    // the nag belongs to the full panel and the full panel only. It stays REGISTERED in compact
+    // mode (still fills its lines, still notifies) and is only not drawn; the switch is what is
+    // hidden, not the report. Register the log switch with lines on the same registry the compact
+    // panel just rendered, then render both surfaces and assert the block is absent in compact and
+    // present in full.
+    if (t.reg) {
+      const removedLogs = []
+      t.reg.registerSwitch({ id: 'harness:missing-yardstick', label: '缺少的配套插件', icon: 'message',
+        type: 'log', group: 'system', order: 95,
+        getLines: () => ['dsh-flash-ctx-mon  not installed'],
+        getMeta: () => '1 not running', onClear: () => { removedLogs.push(true) } })
+      const compactWithLog = renderPanelElement(t)
+      const fullWithLog = renderPanelElement(t, false)
+      const hasLog = (tree) => {
+        let found = 0
+        if (tree) walkEl(tree, (el) => {
+          if (el.props && (el.props['data-switch-id'] === 'harness:missing-yardstick'
+            || el.props['data-switch-id'] === 'dock-flash:companions-missing')) found += 1
+        })
+        return found
+      }
+      check('the missing-companion nag (a text log) is NOT drawn in compact mode',
+        hasLog(compactWithLog) === 0, 'compact log blocks = ' + hasLog(compactWithLog))
+      check('...but it IS drawn in the full panel, where text belongs',
+        hasLog(fullWithLog) >= 1, 'full log blocks = ' + hasLog(fullWithLog))
+    }
+    // ── the compact icon tooltip carries the ORIGINAL description ──────────────────────────
+    // Compact mode strips the subtitle/tooltip lines an icon-only row would otherwise lose, and
+    // the tooltip (`title` on the icon column) is where the original description stays reachable
+    // from a 12px glyph. This is the behavioural half of the source pin in (e): register a toggle
+    // that carries BOTH a subtitle and a tooltip, render the compact tree, and assert the column's
+    // title is the joined description — not the bare name.
+    if (t.reg) {
+      t.reg.registerSwitch({ id: 'harness:described-tooltip', label: 'Gizmo', icon: 'gear', type: 'toggle',
+        group: 'system', order: 98,
+        subtitle: () => 'https://example.local/path',
+        tooltip: 'Turns the gizmo on and off',
+        getValue: () => false, setValue: () => {} })
+      const compactTree = renderPanelElement(t)
+      let targetRows = 0
+      let sawDescription = false
+      if (compactTree) walkEl(compactTree, (el) => {
+        if (el.props && el.props['data-switch-id'] === 'harness:described-tooltip') targetRows += 1
+        // The title lives on the label COLUMN inside the row, not the row itself; the exact
+        // joined string is unique to this harness switch, so its presence is the assertion.
+        if (el.props && el.props.title === 'Gizmo — https://example.local/path — Turns the gizmo on and off') {
+          sawDescription = true
+        }
+      })
+      check('a compact icon chip for a described switch exposes the original description as its title',
+        targetRows === 1 && sawDescription,
+        'targetRows=' + targetRows + ' descriptionInTitle=' + sawDescription)
+    }
     // ── the SURFACE gate: the reported regression, pinned where it actually failed ──────────
     // The docked workbench panel is mounted by dock-base, with none of the standalone props, and
     // it must stay FULL: reading the preference unconditionally is what made it draw icon-only
@@ -3520,6 +3577,43 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       JSON.stringify(snap && snap.compact.iconless))
     check('...and no other row loses its icon',
       !!snap && snap.compact.iconless.length === 1, JSON.stringify(snap && snap.compact.iconless))
+    // An iconless row has an EMPTY (zero-width) label column, so the row's default
+    // `space-between` would shove the lone button group flush against the right edge —
+    // exactly the "偏右" symptom. The fix centers the control in that case. Assert the
+    // INLINE STYLE on the real rendered tree, not just the snapshot: this is where the
+    // bug lived, and it is the only check that can tell "centered" from "shoved right".
+    {
+      const langTree = renderPanelElement(t)
+      const langRows = []
+      if (langTree) walkEl(langTree, (el) => {
+        if (el.props && el.props['data-switch-id'] === 'dock-flash:language') langRows.push(el)
+      })
+      const langRow = langRows[langRows.length - 1]
+      const langStyle = (langRow && langRow.props && langRow.props.style) || {}
+      check('the compact language row centers its control instead of shoving it right',
+        langRows.length >= 1 && langStyle.justifyContent === 'center' && langStyle.columnGap === '0px',
+        'rows=' + langRows.length + ' justifyContent=' + JSON.stringify(langStyle.justifyContent)
+          + ' columnGap=' + JSON.stringify(langStyle.columnGap))
+    }
+    // The config button on an ON toggle is a real element in the same rendered tree: in
+    // compact mode its ⚙ must sit on the strip's 18px icon baseline, not the full panel's
+    // 16px — same key set as the base, only `fontSize` differs. Find the `harness:toggle-a`
+    // row (ON, has `config`); its only <button> is the config button, so read its inline
+    // style straight off the tree.
+    {
+      const cfgTree = renderPanelElement(t)
+      let cfgBtnStyle = null
+      if (cfgTree) walkEl(cfgTree, (el) => {
+        if (el.props && el.props['data-switch-id'] === 'harness:toggle-a' && el.type === 'div') {
+          walkEl(el, (c) => {
+            if (c.type === 'button') cfgBtnStyle = c.props.style
+          })
+        }
+      })
+      check('the ON toggle\u2019s compact config button uses the 18px icon baseline',
+        !!cfgBtnStyle && cfgBtnStyle.fontSize === '18px',
+        'fontSize=' + JSON.stringify(cfgBtnStyle && cfgBtnStyle.fontSize))
+    }
     check('...and the strip is where the surviving page keeps its entry point',
       !!snap && snap.compact.headerlessPages.includes('extensions')
         && snap.compact.tabStripPages.includes('extensions'),
@@ -3591,14 +3685,30 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       !!written && written.compactPanel === false,   // it was true, so it must now be false
       JSON.stringify(written))
     // ── (e) the tooltip: a SOURCE pin, and it says so ──────────────────────────────────────
-    // An icon-only row has to be able to name itself on hover, and that `title` lives in the
+    // An icon-only row has to be able to say what it is on hover, and that `title` lives in the
     // rendered tree — which this harness cannot see. `renderTree()` only INVOKES components; it
     // never materializes them into an `El`, so there is no DOM to query `title` from. Pinned at
-    // the source rather than dressed up as behavioural evidence.
-    check('the compact row carries its name as a tooltip (source pin — this harness renders no DOM)',
+    // the source rather than dressed up as behavioural evidence. The point this pins: compact mode
+    // drops the row's subtitle/tooltip text, so the tooltip must carry the ORIGINAL description
+    // (label → subtitle → tooltip, joined), not merely the short name — an icon that cannot show
+    // the description it used to print is a puzzle.
+    check('the compact row carries its name AND its original description as a tooltip (source pin — this harness renders no DOM)',
       /const name = typeof sw\.label === 'function' \? sw\.label\(\) : sw\.label/.test(code)
-        && /\{ title: String\(name\) \}/.test(code),
-      'the compact label column no longer names itself on hover')
+        && /const desc = \[name, sub, tip\]\.filter\(Boolean\)\.join\(' — '\)/.test(code)
+        && /\.\.\.\(desc \? \{ title: desc \} : \{\}\)/.test(code),
+      'the compact label column no longer names itself (and its description) on hover')
+
+    // ── (e2) the compact icon is BIG, so it reads against the control's height ────────────
+    // With the label text dropped the glyph is the row's whole face. Pinned at the source for the
+    // same reason as (e): this harness renders no DOM, so glyph size is unobservable behaviourally.
+    // The point this pins: compact mode draws the icon at MINIMAL_ICON_SIZE (~18px, matching the
+    // ~20px toggle next to it) and passes that size INTO the SVG drawbox — a width override alone
+    // would leave the 12px drawbox centered in a wider box and change nothing visual.
+    check('the compact icon chip is drawn at MINIMAL_ICON_SIZE while the full panel keeps the 12px glyph (source pin)',
+      /var MINIMAL_ICON_SIZE = 18/.test(code)
+        && /minimalIconEl = \(minimal && iconEl\)/.test(code)
+        && /_switchIcon\(sw\.icon, \{ \.\.\.S\.switchIcon, width: MINIMAL_ICON_SIZE \+ 'px', fontSize: MINIMAL_ICON_SIZE \+ 'px' \}, MINIMAL_ICON_SIZE\)/.test(code),
+      'the compact icon column no longer draws the demure 12px glyph')
 
     check('...and it writes ONLY that field, through the three-argument host call',
       !!written && Object.keys(written).length === 1
@@ -3906,11 +4016,12 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stan
   }
   const headerKids = kidsFrom({ wb: fakeWb })
   const headerViaCtx = kidsFrom({ ctx: { get: (n) => (n === 'workbench' ? fakeWb : undefined) } })
-  check('the service\'s header is the CORE\'s header: two buttons, close-on-blur glyph on the first',
-    Array.isArray(headerKids) && headerKids.length === 2
+  check('the service\'s header is the CORE\'s header: close-on-blur, a reload page, and ×',
+    Array.isArray(headerKids) && headerKids.length === 3
       && /M3\.65 3\.25h4\.7/.test(headerKids[0].props.dangerouslySetInnerHTML.__html)
-      && headerKids[1].props.children === '×'
-      && Array.isArray(headerViaCtx) && headerViaCtx.length === 2,
+      && headerKids[1].props['aria-label'] === 'Reload page'
+      && headerKids[2].props.children === '×'
+      && Array.isArray(headerViaCtx) && headerViaCtx.length === 3,
     'viaWb=' + (headerKids ? headerKids.length : 'none')
       + ' viaCtx=' + (headerViaCtx ? headerViaCtx.length : 'none'))
   const notified = []
