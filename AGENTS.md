@@ -34,7 +34,7 @@ file buys nothing. `docs/` is not a candidate name, which is why relocation work
 src/index.ts      HOST half      → tsc → dist/index.js
 lib/client.js     BROWSER half   → single file, NO build step, edited directly
 dist/index.js     compiled host half — TRACKED on purpose (see Build & Install)
-cordis.patch.yml  bundle layer: inserts this package's host row (id `dock-flash`, name `dsh-flash`)
+cordis.patch.yml  bundle layer: inserts this package's host row (id `dsh-flash`, name `dsh-flash`)
 package.json      manifest + dsh.client.inject
 docs/             long-form notes — NOT injected, read on demand
 scripts/          repo tooling — NOT published (see `files` in package.json)
@@ -523,7 +523,7 @@ never `<pkg>/client` — see "Mode Detection" above for why.
 
 ## i18n Conventions
 
-**DSH's `locale` service is the only language authority**; `t()` proxies `register('dock-flash', { zh, en })`
+**DSH's `locale` service is the only language authority**; `t()` proxies `register('dsh-flash', { zh, en })`
 + `getSnapshot().active` + `subscribe`, read via `ctx.get('locale')`. Labels must be `() => t('xxx')` to
 refresh on a language change; a static string does not.
 
