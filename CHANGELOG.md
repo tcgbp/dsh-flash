@@ -8,6 +8,14 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.2.0
+
+**The core/adapter split lands as a released identity: the consumer-facing specifier changes from `dock-flash` to `dsh-flash`.** This release formalises the split already shipped in the working tree — the core is published under its own name (`dsh-flash`) and its own `cordis.patch.yml` row (`id: dsh-flash`, `name: dsh-flash`), while the dock-base `ctx.workbench` integration stays in the separate `dock-flash` adapter package. It is the release gate for every rename already committed since 1.1.0, because a consumer sees the *new* specifier.
+
+**What a consumer observes.** The settings namespace and host pref namespace shift from the legacy `dock-flash` identity to `dsh-flash`; the standalone ⚡ mounts under `data-dsh-plugin="dsh-flash-standalone"`; and the client persistence keys, DOM attribute names and style/className tokens (`data-dsh-flash-*`, `dsh-flash-overlay-trigger`, `dsh-flash-turn-rail`, `dsh-flash-compact-css`, `dsh-flash-compact-scroll`) all carry the new name. Existing users are carried over by a fail-open `migratePrefsFromDockFlash()`: it copies a legacy pref only when the old value is non-default *and* the new value is still default/absent, and never throws. The dock-base adapter owns its own peer declaration against the new specifier.
+
+> Because this renames cross-plugin identity (switch ids and the service consumer reads), it is a **minor** bump by the releasing rules — not patch. A companion that already validated against the new `dsh-flash` specifier takes this additively; a consumer still asserting the old `dock-flash` core identity must move to the new name.
+
 ## 1.1.0
 
 **The panel and the standalone floating title bar gain a "reload page" button — the one refresh DSH Desktop exposes no entry for.** The Desktop client has no refresh control, so a user who makes a loader-live or `localStorage` change has nowhere to apply it. A circular-arrow (sync) button now sits beside the × close button in both the workbench `PanelHeader` and the standalone `floatingHead` title bar.
