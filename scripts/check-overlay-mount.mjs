@@ -2884,7 +2884,8 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     const reg = provided.quickControl
     const sw = reg && reg.getSwitches().find((s) => s.id === 'dock-flash:companions-missing')
     const copy = reg && reg.getSwitches().find((s) => s.id === 'dock-flash:companions-copy')
-    return { reg, sw, copy, updates, lines: sw ? (sw.getLines() || []).join('\n') : null, meta: sw ? sw.getMeta() : null }
+    return { reg, sw, copy, updates, provided,
+      lines: sw ? (sw.getLines() || []).join('\n') : null, meta: sw ? sw.getMeta() : null }
   }
 
   const WEB = 'C:/Users/x/.dsh/profiles/web'
@@ -3022,6 +3023,38 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     check('...so it stays restorable from the visibility page, and reachable by the reorder mode too',
       typeof t.reg.getSwitches().find((s) => s.id === 'dock-flash:companions-copy').visible === 'function',
       'the copy action still carries its own visible()')
+  }
+
+  // ── (h) the workbench adapter (dock-flash) — flagged ONLY when dock-base is present ──────
+  // The adapter is a different KIND of companion and so deliberately not in `_COMPANIONS`:
+  // it owns no switch prefix to probe, and it is only *missing* in the one case that
+  // matters — dock-base is installed and the panel was never claimed (the AGENTS.md
+  // empty-UI failure mode). A standalone-only user (no dock-base) must never be nagged.
+  {
+    const t = await setup(okProfile(WEB, ['dock-base']))
+    const cmd = t.lines && t.lines.split('\n').filter((l) => l.startsWith('dsh plugin'))[0]
+    check('dock-base installed but no adapter -> dock-flash is named as NOT installed',
+      !!t.lines && t.lines.includes('dock-flash  Workbench adapter — not installed'), t.lines)
+    check('...and it is appended to the install command, after the four monitors',
+      !!t.lines && !!cmd && cmd.endsWith('dsh-flash-proxy dock-flash'), cmd)
+    check('...and the meta counts it (4 monitors + the adapter)',
+      t.meta === '5 not running', JSON.stringify(t.meta))
+  }
+  {
+    const t = await setup(okProfile(WEB, ['dock-base', 'dock-flash']))
+    const cmd = t.lines && t.lines.split('\n').filter((l) => l.startsWith('dsh plugin'))[0]
+    check('adapter installed but claim never happened -> "installed, not running"',
+      !!t.lines && t.lines.includes('dock-flash  Workbench adapter — installed, not running'), t.lines)
+    check('...and it is excluded from the install command (you already have it)',
+      !!t.lines && !!cmd && !cmd.endsWith('dock-flash'), cmd)
+  }
+  {
+    const t = await setup(okProfile(WEB, ['dock-base']))
+    const lease = t.provided.dockFlashPanel.host.claim()
+    lease.confirm()
+    const lines = t.sw && t.sw.getLines().join('\n')
+    check('once the adapter claims the panel it disappears from the list (running = claimed)',
+      !!lines && !lines.includes('dock-flash'), lines)
   }
 }
 

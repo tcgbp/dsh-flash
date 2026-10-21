@@ -402,6 +402,10 @@ dsh plugin --profile my-profile add \
 —— 三个监控在**系统告警**簇里，代理是独立的一簇。请把它们与你所用的两个包之一一起安装；没装的
 话面板里干脆没有那些行。
 
+「缺少的配套插件」这一行对工作台集成本身也一视同仁：一旦装了 `dock-base` 却没装 `dock-flash`
+适配器（即「有工作台却没有面板」的空界面场景），它也会点名 `dock-flash` 并把它追加进同一条安装
+命令。纯独立模式用户——没装 `dock-base`——绝不会因此被打扰。
+
 **其它安装方式**（如果不想走 npm）：GitHub Release 的 tarball
 （`… add https://github.com/tcgbp/dsh-flash/releases/latest/download/dsh-flash.tgz`）、git
 （`… add github:tcgbp/dsh-flash`）、或本地目录（`… add ./dsh-flash`，用于开发：`lib/client.js`

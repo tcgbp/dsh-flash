@@ -241,10 +241,10 @@ export function apply(ctx, config) {
         const abs = Math.abs(offsetMin);
         const zone = sign + pad(Math.floor(abs / 60)) + ':' + pad(abs % 60);
         const oneLine = (v) => v.replace(/[\r\n]+/g, ' ');
-        console.log('[dock-flash] patch ' + at.toISOString() + ' (' + local + ' ' + zone + ') ' +
+        console.log('[dsh-flash] patch ' + at.toISOString() + ' (' + local + ' ' + zone + ') ' +
             (disabled ? 'disable' : 'enable') + ' entry=' + id + ' file=' + oneLine(file));
         for (const line of summary)
-            console.log('[dock-flash] patch   ' + oneLine(line));
+            console.log('[dsh-flash] patch   ' + oneLine(line));
     }
     /**
      * The LOADER ENTRY ID for a package — which is what a patch row must key on, and it is
