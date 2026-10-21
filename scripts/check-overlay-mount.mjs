@@ -618,7 +618,7 @@ const requireStub = (id) => {
 // ── load the REAL bundle ────────────────────────────────────────────────────
 // The overlay position is a stored preference, exactly as it is for a user who
 // picked it, so seed it the same way the switch would have.
-store.set('dock-flash:trigger-position', 'conversation.overlay')
+store.set('dsh-flash:trigger-position', 'conversation.overlay')
 
 const code = fs.readFileSync(
   process.env.DOCK_FLASH_BUNDLE || new URL('../lib/client.js', import.meta.url),
@@ -727,7 +727,7 @@ check('apply() reached ctx.inject([\'slots\']) — the overlay did not throw pas
 // queue behind a service it does not need. A third entry here means apply() grew
 // a new service dependency nobody reviewed.
 
-const btn = sandbox.document.getElementById('dock-flash-overlay-trigger')
+const btn = sandbox.document.getElementById('dsh-flash-overlay-trigger')
 check('overlay button EXISTS in the document', !!btn)
 check('overlay button is a child of <body>', !!(btn && btn.parentNode === body))
 check('overlay button has a real <svg> child (not a React descriptor)',
@@ -834,8 +834,8 @@ registry.registerSwitch({
   getValue: () => false,
   setValue: () => {},
 })
-const PANEL = '[data-dsh-plugin="dock-flash-standalone"]'
-const panelEl = () => body.descendants().find((e) => e.getAttribute('data-dsh-plugin') === 'dock-flash-standalone')
+const PANEL = '[data-dsh-plugin="dsh-flash-standalone"]'
+const panelEl = () => body.descendants().find((e) => e.getAttribute('data-dsh-plugin') === 'dsh-flash-standalone')
 const mouse = (x, y) => ({ button: 0, clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} })
 
 /**
@@ -978,7 +978,7 @@ check('the glyph scaled with it (24→16, 36→24)', btn.children[0].getAttribut
   btn.children[0].getAttribute('width'))
 check('the corner radius scaled too (36/4 = 9)', btn.style.borderRadius === '9px', btn.style.borderRadius)
 check('the size reached localStorage for the pre-host render',
-  store.get('dock-flash:trigger-size') === '36', store.get('dock-flash:trigger-size'))
+  store.get('dsh-flash:trigger-size') === '36', store.get('dsh-flash:trigger-size'))
 // left = min(contentRight 1250 - size 36 - dx 0 = 1214, rail 1200 - 36 - 8 = 1156)
 //      = 1156 — the RAIL side wins here, and that is the point: the give-way
 // arithmetic reads the same size the box was drawn with, so the two cannot
@@ -1005,7 +1005,7 @@ check('an over-range value clamps to the ceiling', sizeSwitch.getValue() === 64,
 sizeSwitch.setValue(8)
 check('a value below the minimum clamps UP to 24 — the control only enlarges',
   sizeSwitch.getValue() === 24, String(sizeSwitch.getValue()))
-store.set('dock-flash:trigger-size', 'junk')
+store.set('dsh-flash:trigger-size', 'junk')
 const probeJunk = sandbox.window.__dockFlashOverlay()
 check('a hand-edited junk value does not reach the geometry',
   probeJunk.triggerSize === null || Number.isFinite(probeJunk.triggerSize),
@@ -1031,7 +1031,7 @@ console.log('\n=== 11. a host-stored size reaches the button ===')
   // reads that as "this browser has a preference the host has never seen" and
   // deliberately migrates it INTO the host (`triggerPosition` has behaved that
   // way since 1.1.0). Absent keys are the honest pre-upgrade cache.
-  store2.set('dock-flash:trigger-position', 'conversation.overlay')
+  store2.set('dsh-flash:trigger-position', 'conversation.overlay')
 
   const body2 = new El('body')
   const documentStub2 = Object.assign({}, documentStub, {
@@ -1076,7 +1076,7 @@ console.log('\n=== 11. a host-stored size reaches the button ===')
           ok: true,
           value: {
             namespaces: [{
-              ns: 'dock-flash',
+              ns: 'dsh-flash',
               revision: 7,
               value: { panelOrder: {}, activeSkin: '', triggerPosition: 'conversation.overlay', triggerOverlayOffset: { dx: 20, dy: 30 }, triggerSize: 48, triggerLayer: 9, overlayOpacity: 0.85 },
             }],
@@ -1090,10 +1090,10 @@ console.log('\n=== 11. a host-stored size reaches the button ===')
   plugin2.apply(ctx2)
   await new Promise((r) => setTimeout(r, 20))
 
-  const btn2 = sandbox2.document.getElementById('dock-flash-overlay-trigger')
+  const btn2 = sandbox2.document.getElementById('dsh-flash-overlay-trigger')
   const probeH = sandbox2.window.__dockFlashOverlay()
   check('the host-stored size was adopted (the cache had no such key)',
-    probeH.triggerSizeStored === 48, JSON.stringify({ stored: probeH.triggerSizeStored, local: store2.get('dock-flash:trigger-size') }))
+    probeH.triggerSizeStored === 48, JSON.stringify({ stored: probeH.triggerSizeStored, local: store2.get('dsh-flash:trigger-size') }))
   check('...and it is what the button is drawn at', !!btn2 && btn2.style.width === '48px', btn2 && btn2.style.width)
   check('...with the glyph derived from it (48 -> 32)', !!btn2 && btn2.children[0].getAttribute('width') === '32',
     btn2 && btn2.children[0].getAttribute('width'))
@@ -1146,8 +1146,8 @@ console.log('\n=== 11b. what the local->host migration is allowed to overwrite =
 {
   const migrateCase = async (hostLayer, localLayer) => {
     const store = new Map()
-    store.set('dock-flash:trigger-layer', String(localLayer))
-    store.set('dock-flash:trigger-position', 'conversation.overlay')
+    store.set('dsh-flash:trigger-layer', String(localLayer))
+    store.set('dsh-flash:trigger-position', 'conversation.overlay')
     const doc = Object.assign({}, documentStub, {
       body: new El('body'), documentElement: new El('html'),
       querySelector: () => null, querySelectorAll: () => [],
@@ -1190,7 +1190,7 @@ console.log('\n=== 11b. what the local->host migration is allowed to overwrite =
             ok: true,
             value: {
               namespaces: [{
-                ns: 'dock-flash',
+                ns: 'dsh-flash',
                 revision: 3,
                 value: { triggerPosition: 'conversation.overlay', triggerLayer: hostLayer, overlayOpacity: 0.55 },
               }],
@@ -1226,7 +1226,7 @@ console.log('\n=== 11b. what the local->host migration is allowed to overwrite =
 console.log('\n=== 12. a host that answers LATE still reaches the button ===')
 {
   const store3 = new Map()
-  store3.set('dock-flash:trigger-position', 'conversation.overlay')
+  store3.set('dsh-flash:trigger-position', 'conversation.overlay')
 
   const body3 = new El('body')
   const documentStub3 = Object.assign({}, documentStub, {
@@ -1270,7 +1270,7 @@ console.log('\n=== 12. a host that answers LATE still reaches the button ===')
       settings: {
         describe: () => gate.then(() => ({
           ok: true,
-          value: { namespaces: [{ ns: 'dock-flash', revision: 3, value: { triggerSize: 64, triggerOverlayOffset: { dx: 0, dy: 40 } } }] },
+          value: { namespaces: [{ ns: 'dsh-flash', revision: 3, value: { triggerSize: 64, triggerOverlayOffset: { dx: 0, dy: 40 } } }] },
         })),
         update: () => Promise.resolve({ ok: true, value: { revision: 4 } }),
       },
@@ -1280,7 +1280,7 @@ console.log('\n=== 12. a host that answers LATE still reaches the button ===')
   plugin3.apply(ctx3)
   await new Promise((r) => setTimeout(r, 10))
 
-  const btn3 = sandbox3.document.getElementById('dock-flash-overlay-trigger')
+  const btn3 = sandbox3.document.getElementById('dsh-flash-overlay-trigger')
   check('before the host answers, the button is at the default', !!btn3 && btn3.style.width === '24px',
     btn3 && btn3.style.width)
   check('...and the probe says the value is only local',
@@ -1334,12 +1334,12 @@ console.log('\n=== 13. the open panel must not cover its own button ===')
   const container = panelEl()
   check('the standalone panel container is mounted', !!container)
   // `positionPanel()` resolves its anchor with
-  // `document.querySelector('[data-dock-flash-trigger]')`, so the assertion must
+  // `document.querySelector('[data-dsh-flash-trigger]')`, so the assertion must
   // use THAT element's box rather than assuming it is the overlay button — the
   // slot trigger carries the same attribute (it is what `handleOutsideClick`
   // exempts), and whichever the document finds first is what the panel anchors
   // to.
-  const anchorEl = sandbox.document.querySelector('[data-dock-flash-trigger]')
+  const anchorEl = sandbox.document.querySelector('[data-dsh-flash-trigger]')
   check('the panel anchor is the overlay button', anchorEl === btn,
     anchorEl ? `${anchorEl.tagName}#${anchorEl.id || '(no id)'}` : 'no anchor')
   const anchorBox = (top, h) => {
@@ -1713,7 +1713,7 @@ console.log('\n=== 16. the skin list follows the market classification ===')
     })
     sandbox4.window = sandbox4
     sandbox4.globalThis = sandbox4
-    store4.set('dock-flash:trigger-position', 'conversation.overlay')
+    store4.set('dsh-flash:trigger-position', 'conversation.overlay')
     let def4 = null
     sandbox4.window.__ModuleLoader__ = { load: (d) => { def4 = d } }
     vm.runInNewContext(code, sandbox4, { filename: 'lib/client.js#nodreg' })
@@ -1778,13 +1778,13 @@ console.log('\n=== 18. the overlay context menu ===')
   // overlay down and builds a NEW element, so a cached node is a detached one and
   // asserting against it checks a node no listener is attached to. That mistake
   // cost two rounds on this very section.
-  const liveBtn = () => sandbox.document.getElementById('dock-flash-overlay-trigger')
+  const liveBtn = () => sandbox.document.getElementById('dsh-flash-overlay-trigger')
   check('the overlay button exists in the document', !!liveBtn() && liveBtn().parentNode === body)
 
   // Give the button a real box: `positionOverlayMenu()` reads it to clamp.
   liveBtn()._rect = { x: 1200, y: 80, width: 24, height: 24, top: 80, left: 1200, right: 1224, bottom: 104 }
 
-  const menuEl = () => body.descendants().find((e) => e.getAttribute('data-dock-flash-menu') !== null)
+  const menuEl = () => body.descendants().find((e) => e.getAttribute('data-dsh-flash-menu') !== null)
   check('no menu before the right-click', !menuEl())
 
   // A contextmenu event, NOT a click: the browser's own menu must be suppressed.
@@ -1863,7 +1863,7 @@ console.log('\n=== 18. the overlay context menu ===')
     check('...and carries the button with it', Number(liveBtn().style.zIndex) === 2001,
       `${liveBtn().style.zIndex} (panel ${panelEl().style.zIndex})`)
     check('...and persists to localStorage for the pre-host render',
-      store.get('dock-flash:trigger-layer') === '2000', String(store.get('dock-flash:trigger-layer')))
+      store.get('dsh-flash:trigger-layer') === '2000', String(store.get('dsh-flash:trigger-layer')))
     check('...and the probe reports it', sandbox.window.__dockFlashOverlay().triggerLayer === 2000,
       String(sandbox.window.__dockFlashOverlay().triggerLayer))
   }
@@ -1877,8 +1877,8 @@ console.log('\n=== 18. the overlay context menu ===')
       String(sandbox.window.__dockFlashOverlay().dragging))
     opacityRow.dispatch('click', { type: 'click', preventDefault() {}, stopPropagation() {} })
     check('picking it repaints the button at rest', liveBtn().style.opacity === '0.85', String(liveBtn().style.opacity))
-    check('...and persists', store.get('dock-flash:overlay-opacity') === '0.85',
-      String(store.get('dock-flash:overlay-opacity')))
+    check('...and persists', store.get('dsh-flash:overlay-opacity') === '0.85',
+      String(store.get('dsh-flash:overlay-opacity')))
   }
   // Hover means solid, and so does a drag; releasing must hand brightness BACK,
   // which is the defect the old `if (!dragging)` guard left behind.
@@ -1920,7 +1920,7 @@ console.log('\n=== 19. the rail mirror follows DSH\'s own offset ===')
   const railSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:turn-rail-left')
   check('the turn-rail-left switch is registered', !!railSwitch, 'not found')
   if (railSwitch) {
-    const tagOf = () => head.descendants().find((e) => e.id === 'dock-flash-turn-rail')
+    const tagOf = () => head.descendants().find((e) => e.id === 'dsh-flash-turn-rail')
     railSwitch.setValue(true)
     const tag = tagOf()
     check('enabling it injects the override stylesheet', !!tag)
@@ -2366,9 +2366,9 @@ console.log('\n=== 21. a handle-less skin VISIBLY in effect (the state 默认 co
   })
   sandbox5.window = sandbox5
   sandbox5.globalThis = sandbox5
-  store5.set('dock-flash:trigger-position', 'conversation.overlay')
+  store5.set('dsh-flash:trigger-position', 'conversation.overlay')
   // The bookkeeping the user's page had: the stored selection says `default`.
-  store5.set('dock-flash:active-skin', 'default')
+  store5.set('dsh-flash:active-skin', 'default')
 
   let def5 = null
   sandbox5.window.__ModuleLoader__ = { load: (d) => { def5 = d } }
@@ -2535,8 +2535,8 @@ console.log('\n=== 22. activating a handle-less skin IN-PAGE still reloads ===')
   // disabled theme is discoverable while having no style tag to toggle. That shape
   // is exactly what `_skinNotControllable()` reads.
   sandbox6.__DSH_BOOT__ = { entries: [{ id: 'dsh-dream-skin' }] }
-  store6.set('dock-flash:trigger-position', 'conversation.overlay')
-  store6.set('dock-flash:active-skin', 'default')
+  store6.set('dsh-flash:trigger-position', 'conversation.overlay')
+  store6.set('dsh-flash:active-skin', 'default')
 
   let def6 = null
   sandbox6.window.__ModuleLoader__ = { load: (d) => { def6 = d } }
@@ -2613,9 +2613,9 @@ console.log('\n=== 22. activating a handle-less skin IN-PAGE still reloads ===')
     // nothing.
     check('...and that trace is readable from sessionStorage, not just memory',
       (() => {
-        try { return JSON.parse(sess6.get('dock-flash:skin-trace') || '[]').some((e) => e.event === 'press') } catch (_) { return false }
+        try { return JSON.parse(sess6.get('dsh-flash:skin-trace') || '[]').some((e) => e.event === 'press') } catch (_) { return false }
       })(),
-      String(sess6.get('dock-flash:skin-trace')))
+      String(sess6.get('dsh-flash:skin-trace')))
 
     // REMOVED ASSERTION — a known, accepted behaviour, recorded rather than tested.
     //
@@ -2686,7 +2686,7 @@ console.log('\n=== 23. a describe() that is NOT a promise must not kill the plug
     writable: true,
     hasDocument: true,
     namespaces: [{
-      ns: 'dock-flash',
+      ns: 'dsh-flash',
       revision: 7,
       value: { panelOrder: {}, activeSkin: '', triggerPosition: 'conversation.overlay', triggerOverlayOffset: { dx: 20, dy: 30 }, triggerSize: 48, triggerLayer: 9, overlayOpacity: 0.85 },
     }],
@@ -2797,7 +2797,7 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
 
   const NAMESPACE = {
     ok: true,
-    value: { namespaces: [{ ns: 'dock-flash', revision: 3, value: { panelOrder: {}, activeSkin: '', triggerPosition: 'conversation.overlay' } }] },
+    value: { namespaces: [{ ns: 'dsh-flash', revision: 3, value: { panelOrder: {}, activeSkin: '', triggerPosition: 'conversation.overlay' } }] },
   }
 
   function sandboxWithProfile (profileFetch, lang) {
@@ -3013,7 +3013,7 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
       hidden.includes('dock-flash:companions-missing') && hidden.includes('dock-flash:companions-copy'),
       JSON.stringify(hidden))
     check('...and it writes ONLY the hidden set — no new preference, nothing removed',
-      t.updates.every((args) => args[0] === 'dock-flash' && args.length === 3)
+      t.updates.every((args) => args[0] === 'dsh-flash' && args.length === 3)
         && !t.updates.some((args) => args[1] && Object.keys(args[1]).some((k) => k !== 'panelOrder')),
       JSON.stringify(t.updates.map((a) => Object.keys(a[1] || {}))))
     check('...and BOTH switches are still registered afterwards (hidden, not deleted)',
@@ -3171,7 +3171,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
 
   const NAMESPACE_COMPACT = {
     ok: true,
-    value: { namespaces: [{ ns: 'dock-flash', revision: 3, value: {
+    value: { namespaces: [{ ns: 'dsh-flash', revision: 3, value: {
       panelOrder: {}, activeSkin: '', triggerPosition: 'conversation.overlay',
       compactPanel: true,   // <- the mode arrives as a PREFERENCE
     } }] },
@@ -3181,7 +3181,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
     const store = new Map()
     // The overlay is the position this section needs (it owns the ⚡ that takes the double-click),
     // and the DEFAULT is a slot position — so it is seeded here exactly as the base sandbox does.
-    store.set('dock-flash:trigger-position', 'conversation.overlay')
+    store.set('dsh-flash:trigger-position', 'conversation.overlay')
     const body = new El('body')
     const docEl = new El('html')
     docEl.setAttribute('lang', 'en')
@@ -3237,7 +3237,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
         settings: {
           describe: () => Promise.resolve(compactPanel === undefined
             ? NAMESPACE_COMPACT
-            : { ok: true, value: { namespaces: [{ ns: 'dock-flash', revision: 3, value: {
+            : { ok: true, value: { namespaces: [{ ns: 'dsh-flash', revision: 3, value: {
                 panelOrder: {}, activeSkin: '', triggerPosition: 'conversation.overlay', compactPanel,
                 compactPanelDocked: docked === true,
               } }] } }),
@@ -3276,7 +3276,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       order: 211, icon: 'clock', getValue: () => false, setValue: () => {} })
     // Open it: the standalone trigger is the double-click target, and opening renders the panel —
     // which is what assigns the console hook the assertions read.
-    const btn = sb.document.getElementById('dock-flash-overlay-trigger')
+    const btn = sb.document.getElementById('dsh-flash-overlay-trigger')
     const ev = (detail) => ({ button: 0, clientX: 1236, clientY: 84, detail,
       preventDefault() {}, stopPropagation() {} })
     btn.dispatch('mousedown', ev(1))
@@ -3328,7 +3328,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
   }
   /** The scroller is identified by the class compact mode puts on it — the same marker the
    *  WebKit scrollbar-hiding rule targets, so it cannot silently move. */
-  const isScroller = (el) => !!(el.props && el.props.className === 'dock-flash-compact-scroll')
+  const isScroller = (el) => !!(el.props && el.props.className === 'dsh-flash-compact-scroll')
 
   // ── (a) the mode comes from the preference, and it removes the text chrome ──────────────
   {
@@ -3392,7 +3392,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       if (props.role === 'tablist') {
         strip.found = true
         if (inside) strip.insideScroller = true
-        for (const k of rootKidsOf(el)) if (k.props) strip.chips.push(k.props['data-dock-flash-tab'])
+        for (const k of rootKidsOf(el)) if (k.props) strip.chips.push(k.props['data-dsh-flash-tab'])
       }
       walk(props.children, nowInside)
     }
@@ -3501,10 +3501,10 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
     // This harness does build that head (`ensurePanelContainer` runs on the first open), so unlike
     // the React rows these two are asserted as behaviour rather than at the source.
     const panelEl = t.sb.document.body.descendants()
-      .find((e) => e.getAttribute('data-dsh-plugin') === 'dock-flash-standalone')
+      .find((e) => e.getAttribute('data-dsh-plugin') === 'dsh-flash-standalone')
     const head = panelEl && panelEl.children[0]
-    const titleEl = head && head.descendants().find((e) => e.getAttribute('data-dock-flash-title') !== null)
-    const toggleBtn = head && head.descendants().find((e) => e.getAttribute('data-dock-flash-compact') !== null)
+    const titleEl = head && head.descendants().find((e) => e.getAttribute('data-dsh-flash-title') !== null)
+    const toggleBtn = head && head.descendants().find((e) => e.getAttribute('data-dsh-flash-compact') !== null)
     check('the floating header carries a compact-mode toggle button',
       !!toggleBtn, head ? head.descendants().length + ' nodes in the head' : 'no head element')
     // `visibility: hidden`, NOT `display: none` — the title is the row's `flex: 1` spacer, so
@@ -3694,9 +3694,9 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
   {
     const t = await openCompactPanel(true)
     const panelEl = t.sb.document.body.descendants()
-      .find((e) => e.getAttribute('data-dsh-plugin') === 'dock-flash-standalone')
+      .find((e) => e.getAttribute('data-dsh-plugin') === 'dsh-flash-standalone')
     const headBtn = panelEl && panelEl.descendants()
-      .find((e) => e.getAttribute('data-dock-flash-compact') !== null)
+      .find((e) => e.getAttribute('data-dsh-flash-compact') !== null)
 
     // The trigger is a plain open/close toggle now. Both presses of what WOULD have been a
     // double-click must leave the preference alone.
@@ -3745,7 +3745,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
 
     check('...and it writes ONLY that field, through the three-argument host call',
       !!written && Object.keys(written).length === 1
-        && t.updates.some((a) => a[0] === 'dock-flash' && a.length === 3),
+        && t.updates.some((a) => a[0] === 'dsh-flash' && a.length === 3),
       JSON.stringify(t.updates.map((a) => [a[0], Object.keys(a[1] || {}), a.length])))
   }
 
@@ -3766,9 +3766,9 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
   {
     const t = await openCompactPanel(true)
     const panelEl = t.sb.document.body.descendants()
-      .find((e) => e.getAttribute('data-dsh-plugin') === 'dock-flash-standalone')
+      .find((e) => e.getAttribute('data-dsh-plugin') === 'dsh-flash-standalone')
     const toggleBtn = panelEl && panelEl.descendants()
-      .find((e) => e.getAttribute('data-dock-flash-compact') !== null)
+      .find((e) => e.getAttribute('data-dsh-flash-compact') !== null)
     check('the standalone panel starts compact, from the host preference',
       !!toggleBtn && !!t.snapshot() && t.snapshot().compact.on === true,
       JSON.stringify({ btn: !!toggleBtn, on: t.snapshot() && t.snapshot().compact.on }))
@@ -3820,38 +3820,38 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
     // drawn. Read out of the source string it would survive the element being renamed.
     const drawn = []
     walkEl(renderPanelElement(t, false), (el) => {
-      if (el.props && el.props['data-dock-flash-tab-header'] !== undefined) drawn.push(el.props)
+      if (el.props && el.props['data-dsh-flash-tab-header'] !== undefined) drawn.push(el.props)
     })
     check('a drawn tab header carries the attribute the compact rule targets',
       drawn.length > 0, `${drawn.length} headers in the rendered docked tree`)
     check('...and the marker never lands on the compact chip, which must stay visible',
-      drawn.every((p) => p['data-dock-flash-tab'] === undefined),
+      drawn.every((p) => p['data-dsh-flash-tab'] === undefined),
       JSON.stringify(drawn.map((p) => Object.keys(p))))
 
-    const tag = t.sb.document.getElementById('dock-flash-compact-css')
+    const tag = t.sb.document.getElementById('dsh-flash-compact-css')
     const css = tag ? String(tag.textContent || '') : ''
     check('compact mode installs its CSS invariant while the preference is on', !!tag,
-      'no #dock-flash-compact-css style tag — the rule is back to needing a re-render')
+      'no #dsh-flash-compact-css style tag — the rule is back to needing a re-render')
     check('...scoped to the STANDALONE container, so the docked panel keeps its headers',
-      css.includes('[data-dsh-plugin="dock-flash-standalone"]') &&
-      css.includes('[data-dock-flash-tab-header]'), css)
+      css.includes('[data-dsh-plugin="dsh-flash-standalone"]') &&
+      css.includes('[data-dsh-flash-tab-header]'), css)
     check('...with !important, because the header inline display outranks a plain rule',
       /display\s*:\s*none\s*!important/.test(css), css)
     const tagCount = t.sb.document.head.descendants()
-      .filter((e) => e.tagName === 'STYLE' && e.id === 'dock-flash-compact-css').length
+      .filter((e) => e.tagName === 'STYLE' && e.id === 'dsh-flash-compact-css').length
     check('...and exactly ONE tag across every emit, so the writer is idempotent',
       tagCount === 1, `count=${tagCount}`)
 
     // Compact OFF removes the tag rather than leaving a disabled rule behind (Critical Rule 2), and
     // the press that flips the mode is the thing that must do it.
     const btn = t.sb.document.body.descendants()
-      .find((e) => e.getAttribute('data-dock-flash-compact') !== null)
+      .find((e) => e.getAttribute('data-dsh-flash-compact') !== null)
     check('the header button is there to flip the mode', !!btn, 'no compact button found')
     if (btn) btn.dispatch('click', t.ev(1))
     await new Promise((r) => setTimeout(r, 20))
     check('turning compact OFF removes the rule outright, never merely disables it',
-      t.sb.document.getElementById('dock-flash-compact-css') === null,
-      String((t.sb.document.getElementById('dock-flash-compact-css') || {}).textContent))
+      t.sb.document.getElementById('dsh-flash-compact-css') === null,
+      String((t.sb.document.getElementById('dsh-flash-compact-css') || {}).textContent))
 
     // ── (h) no two SIBLINGS may share a key ─────────────────────────────────────────────────
     // The reported defect this guards: toggling compact mode once (on → off) left ONE MORE 工作台
@@ -3907,7 +3907,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
         if (Array.isArray(el)) { for (const c of el) pageWrappers(c, out, depth + 1); return out }
         const kids = el.props ? el.props.children : undefined
         if (Array.isArray(kids)) {
-          const hdr = kids.find((k) => k && k.props && k.props['data-dock-flash-tab-header'] !== undefined)
+          const hdr = kids.find((k) => k && k.props && k.props['data-dsh-flash-tab-header'] !== undefined)
           const body = kids.find((k) => k && k.props && isTabBody(k.props))
           if (hdr && body) out.push({ hdr, body, kids })
         }
@@ -3954,7 +3954,7 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stan
   // The rows are the truth table from docs/refactor-plan-core-adapter-split.md §1.3.
   const hostSvc = sandbox.window.__dockFlashHost && sandbox.window.__dockFlashHost()
   const panelSvc = sandbox.window.__dockFlashPanelService && sandbox.window.__dockFlashPanelService()
-  const boltEl = () => sandbox.document.getElementById('dock-flash-overlay-trigger')
+  const boltEl = () => sandbox.document.getElementById('dsh-flash-overlay-trigger')
 
   check('the panel host is published (claim / release / releaseOne / isClaimed)',
     !!hostSvc && typeof hostSvc.claim === 'function' && typeof hostSvc.release === 'function'
@@ -4069,11 +4069,11 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stan
     currentTarget: { style: {}, attrs: {}, setAttribute(k, v) { this.attrs[k] = v }, getAttribute(k) { return this.attrs[k] } },
   })
   const cobOn = (v) => v !== 'off'
-  const cobBefore = store.get('dock-flash:close-on-blur')
+  const cobBefore = store.get('dsh-flash:close-on-blur')
   headerKids[0].props.onClick(cobEl())
-  const cobMid = store.get('dock-flash:close-on-blur')
+  const cobMid = store.get('dsh-flash:close-on-blur')
   headerKids[0].props.onClick(cobEl())
-  const cobAfter = store.get('dock-flash:close-on-blur')
+  const cobAfter = store.get('dsh-flash:close-on-blur')
   provided.quickControl.notifyChange = origNotify
   check('...and its toggle writes through the CORE registry (the wart this split fixed)',
     cobOn(cobMid) !== cobOn(cobBefore) && cobOn(cobAfter) === cobOn(cobBefore)
@@ -4116,7 +4116,7 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
   // the panel publishes, because that `{ t, L }` is what the `dock-flash` adapter
   // consumes. A migration that only ever ran the fallback would look identical here
   // and still be the old code.
-  const NS = 'dock-flash'
+  const NS = 'dsh-flash'
   const LOCALES = [{ id: 'zh' }, { id: 'en' }]
 
   function makeLocaleService (startId) {
@@ -4174,7 +4174,7 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
 
   function sandboxWithLocale (localeService) {
     const store = new Map()
-    store.set('dock-flash:trigger-position', 'conversation.overlay')
+    store.set('dsh-flash:trigger-position', 'conversation.overlay')
     const body = new El('body')
     const doc = Object.assign({}, documentStub, {
       body,
@@ -4227,7 +4227,7 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
       inject: (deps, cb) => { if (deps.indexOf('slots') !== -1) slotCb = cb; return () => {} },
       remote: {
         settings: {
-          describe: () => Promise.resolve({ ok: true, value: { namespaces: [{ ns: 'dock-flash', revision: 3,
+          describe: () => Promise.resolve({ ok: true, value: { namespaces: [{ ns: 'dsh-flash', revision: 3,
             value: { panelOrder: {}, activeSkin: '', triggerPosition: 'conversation.overlay' } }] } }),
           update: () => Promise.resolve({ ok: true, value: { revision: 4 } }),
         },
@@ -4382,8 +4382,8 @@ console.log('\n=== 30. detach/re-attach: exactly one container, and the gestures
   // reproduction of the reported defect — say which one an assertion is, or a
   // passing suite reads as coverage it does not have.
   const hostSvc = sandbox.window.__dockFlashHost()
-  const panels = () => body.descendants().filter((e) => e.getAttribute('data-dsh-plugin') === 'dock-flash-standalone')
-  const bolt = () => sandbox.document.getElementById('dock-flash-overlay-trigger')
+  const panels = () => body.descendants().filter((e) => e.getAttribute('data-dsh-plugin') === 'dsh-flash-standalone')
+  const bolt = () => sandbox.document.getElementById('dsh-flash-overlay-trigger')
 
   const b = bolt()
   tap(b)
@@ -4413,7 +4413,7 @@ console.log('\n=== 30. detach/re-attach: exactly one container, and the gestures
   // carrying our own attribute, attached to <body>, held by nobody — exactly what
   // an abandoned teardown leaves behind.
   const orphan = new El('div')
-  orphan.setAttribute('data-dsh-plugin', 'dock-flash-standalone')
+  orphan.setAttribute('data-dsh-plugin', 'dsh-flash-standalone')
   body.appendChild(orphan)
   check('...two containers exist once the orphan is planted (the precondition)',
     panels().length === 2, 'containers=' + panels().length)
