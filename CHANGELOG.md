@@ -8,6 +8,16 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.1.0
+
+**The panel and the standalone floating title bar gain a "reload page" button — the one refresh DSH Desktop exposes no entry for.** The Desktop client has no refresh control, so a user who makes a loader-live or `localStorage` change has nowhere to apply it. A circular-arrow (sync) button now sits beside the × close button in both the workbench `PanelHeader` and the standalone `floatingHead` title bar.
+
+**Why a shared `_fadeBeforeReload` was unreachable.** The skin system owns a fade-then-reload transition (`_fadeBeforeReload`), but it is private to the `createSkinSystem` factory — both title bars live in the factory scope *above* it, so a button there could not call it without an uncaught `ReferenceError` on click. The reload helper is therefore a new factory-level `_fadeThenReload()`: self-contained (builds the same `[data-dock-flash-fade]` overlay, fades in over 150 ms, then `location.reload()`), with a bare reload fallback if the overlay fails. The skin system's own trace-recording path is untouched.
+
+**The button is a real control, not a passive glyph.** In `floatingHead` it is excluded from the head's drag guard (`e.target === reloadBtn`) so a press does not start a drag, it calls `stopPropagation()`, carries `aria-label`/`title` "Reload page", and is nulled in the standalone teardown like its siblings. The measured compact-panel budget was re-audited: the fixed children in the 176 px head now total ~163 px (reload button adds ~25 px), still below the ceiling, with the flexing, `minWidth: 0` title absorbing the rest — the overflow guard in `check:overlay` (section 28) now expects three header buttons (close-on-blur, reload, ×) through both the `{ wb }` and `{ ctx }` call shapes.
+
+> A page reload applies loader-live and `localStorage` changes only — it does **not** re-read the boot-time layers (`cordis.patch.yml` / `dsh.profile.bundles`). Those still need a host restart. The host half is untouched, so `dist/index.js` is unchanged.
+
 ## 1.0.2
 
 **One compact-mode round trip stopped adding a 工作台 tab header to the full panel.** The defect was a duplicate React `key`, not a stray container. Each page is drawn as a wrapper holding `[header, body]`, and both children carried `key: page.id` — the *same* id. React's own wording is the whole mechanism: *"Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version."* It duplicated. Toggling compact mode OFF re-inserts the header (`renderTabHeader()` returns `null` while `minimal` holds, so the mode unmounts it), and each re-insert left the previous header node in the DOM: one per round trip, forever.
