@@ -30,7 +30,7 @@ dsh-flash ──提供 "dockFlashPanel" 服务──▶ dock-flash ──ctx.wor
 
 > **有一处 profile 改动是必须的，而且很容易漏掉。** profile 的 `cordis.patch.yml` 里承载你面板设置的那条写着 `- id: dock-flash` / `name: dock-flash`。那个 `name:` 是**对目标行当前 specifier 的断言**，不是重命名。拆分之后，`id: dock-flash` 解析到的是**本核心行**，它的 specifier 是 `dsh-flash`，于是断言不匹配，DSH 打印 ``patch: name mismatch for "dock-flash" (expected "dsh-flash", got "dock-flash"), skipping``，整块 `config:` 被**丢弃** —— 你的面板顺序、皮肤、触发按钮位置与尺寸会静默回落到默认值。把那条的 `name: dock-flash` 改成 `name: dsh-flash`，`id: dock-flash` 保持不动。
 
-> **设置命名空间本身不会改变。** profile patch 的**条目 id** 有意保留为 `dock-flash`，因为这个条目 id **就是**所有已发布用户偏好所在的设置命名空间。设置页区块、持久化的 `dock-flash:…` 键以及 `/plugins/dock-flash/…` 的宿主路由在拆分前后都保持不变 —— 上面那处 `name:` 修正是升级唯一需要的改动。
+> **设置命名空间本身不会改变。** profile patch 的**条目 id** 有意保留为 `dock-flash`，因为这个条目 id **就是**所有已发布用户偏好所在的设置命名空间。设置页区块与持久化的 `dock-flash:…` 键保持不变；**宿主路由是例外**：作为核心身份迁移的一部分，六条 `/plugins/dock-flash/…` 路由已改名为 `/plugins/dsh-flash/…`（见下方路由清单）—— 凡是 `fetch` 这些 URL 的客户端或伴随插件都必须指向新路径。
 
 ## 运行模式
 
@@ -82,12 +82,12 @@ dsh-flash ──提供 "dockFlashPanel" 服务──▶ dock-flash ──ctx.wor
 
 - 注册 `dock-flash` 设置命名空间（面板偏好、触发器偏好、宿主告警队列设置）
 - 提供 HTTP 路由：
-  - `GET /plugins/dock-flash/host-alerts` — 排空服务端推送告警队列
-  - `POST /plugins/dock-flash/push-alert` — 向队列推送一条告警
-  - `POST /plugins/dock-flash/clear-alerts` — 清空告警队列
-  - `GET /plugins/dock-flash/health` — 轻量心跳 + Node.js 内存统计
-  - `GET /plugins/dock-flash/profile-packages` — 配置清单，用于皮肤发现
-  - `POST /plugins/dock-flash/set-plugin-entry` — 通过 patch 编辑实时启用/禁用插件
+  - `GET /plugins/dsh-flash/host-alerts` — 排空服务端推送告警队列
+  - `POST /plugins/dsh-flash/push-alert` — 向队列推送一条告警
+  - `POST /plugins/dsh-flash/clear-alerts` — 清空告警队列
+  - `GET /plugins/dsh-flash/health` — 轻量心跳 + Node.js 内存统计
+  - `GET /plugins/dsh-flash/profile-packages` — 配置清单，用于皮肤发现
+  - `POST /plugins/dsh-flash/set-plugin-entry` — 通过 patch 编辑实时启用/禁用插件
 
 > **系统代理功能已迁至** [`dsh-flash-proxy`](https://github.com/tcgbp/dsh-flash-proxy) 插件 —— 代理模式、NO_PROXY 策略、`testUrl`、连接诊断及五个 `dsh-flash-proxy:*` QuickControl 开关现已在该插件中。
 

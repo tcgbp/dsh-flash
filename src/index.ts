@@ -736,7 +736,7 @@ export function apply(ctx: Context, config: FlashConfig) {
    * THIS plugin is the one we are running in" — is NOT sufficient:
    * MEASURED, `~/.dsh/profiles` held BOTH `desktop` and `web`, both installed
    * dock-flash, `readdirSync` returns `desktop` first, and a `dsh web` process
-   * therefore resolved the DESKTOP profile: `/plugins/dock-flash/profile-packages`
+   * therefore resolved the DESKTOP profile: `/plugins/dsh-flash/profile-packages`
    * answered `dir: …\profiles\desktop` and every skin toggle wrote
    * `profiles/desktop/cordis.patch.yml` while the running loader watched
    * `profiles/web/cordis.patch.yml`. Each write honestly reported
@@ -902,7 +902,7 @@ export function apply(ctx: Context, config: FlashConfig) {
 
     wsCtx.effect(() => wsCtx.webServer.register({
       kind: 'exact',
-      path: '/plugins/dock-flash/push-alert',
+      path: '/plugins/dsh-flash/push-alert',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
@@ -940,11 +940,11 @@ export function apply(ctx: Context, config: FlashConfig) {
         while (_alertQueue.length > cap) _alertQueue.shift()
         sendJson(res, 200, { ok: true, queued: _alertQueue.length })
       },
-    }), 'dock-flash: POST /plugins/dock-flash/push-alert')
+    }), 'dsh-flash: POST /plugins/dsh-flash/push-alert')
 
     wsCtx.effect(() => wsCtx.webServer.register({
       kind: 'exact',
-      path: '/plugins/dock-flash/host-alerts',
+      path: '/plugins/dsh-flash/host-alerts',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (req.method !== 'GET') {
           res.statusCode = 405
@@ -965,13 +965,13 @@ export function apply(ctx: Context, config: FlashConfig) {
         const alerts = _alertQueue.splice(0, _alertQueue.length)
         sendJson(res, 200, { alerts })
       },
-    }), 'dock-flash: GET /plugins/dock-flash/host-alerts')
+    }), 'dsh-flash: GET /plugins/dsh-flash/host-alerts')
 
     // Clear the host-side alert queue — called when the client's master
     // system-alerts toggle is switched OFF so no stale data survives.
     wsCtx.effect(() => wsCtx.webServer.register({
       kind: 'exact',
-      path: '/plugins/dock-flash/clear-alerts',
+      path: '/plugins/dsh-flash/clear-alerts',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
@@ -983,7 +983,7 @@ export function apply(ctx: Context, config: FlashConfig) {
         _alertQueue.splice(0, _alertQueue.length)
         sendJson(res, 200, { ok: true, cleared: count })
       },
-    }), 'dock-flash: POST /plugins/dock-flash/clear-alerts')
+    }), 'dsh-flash: POST /plugins/dsh-flash/clear-alerts')
 
     // D-owned connectivity heartbeat — the client's network-alert provider
     // polls THIS route to gauge latency (proxy status is in `dsh-flash-proxy`).
@@ -994,7 +994,7 @@ export function apply(ctx: Context, config: FlashConfig) {
     // popup can display host-side memory metrics.
     wsCtx.effect(() => wsCtx.webServer.register({
       kind: 'exact',
-      path: '/plugins/dock-flash/health',
+      path: '/plugins/dsh-flash/health',
       handler: async (_req: IncomingMessage, res: ServerResponse) => {
         const mem = process.memoryUsage()
         sendJson(res, 200, {
@@ -1009,7 +1009,7 @@ export function apply(ctx: Context, config: FlashConfig) {
           },
         })
       },
-    }), 'dock-flash: GET /plugins/dock-flash/health')
+    }), 'dsh-flash: GET /plugins/dsh-flash/health')
 
     // E · Profile inventory — the profile's own manifest, which on DSH Desktop
     // is the ONLY source that can see an INSTALLED-BUT-SWITCHED-OFF plugin: the
@@ -1020,7 +1020,7 @@ export function apply(ctx: Context, config: FlashConfig) {
     // it was installed, so it was listed nowhere.
     wsCtx.effect(() => wsCtx.webServer.register({
       kind: 'exact',
-      path: '/plugins/dock-flash/profile-packages',
+      path: '/plugins/dsh-flash/profile-packages',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (req.method !== 'GET') {
           res.statusCode = 405
@@ -1030,7 +1030,7 @@ export function apply(ctx: Context, config: FlashConfig) {
         }
         sendJson(res, 200, await readProfilePackages())
       },
-    }), 'dock-flash: GET /plugins/dock-flash/profile-packages')
+    }), 'dsh-flash: GET /plugins/dsh-flash/profile-packages')
 
     // F · The LIVE plugin switch. The client remote cannot address anything on DSH
     // Desktop — `unknown-plugin` for every id, because its inventory does not
@@ -1045,7 +1045,7 @@ export function apply(ctx: Context, config: FlashConfig) {
     // so the client can drive both levers through one code path.
     wsCtx.effect(() => wsCtx.webServer.register({
       kind: 'exact',
-      path: '/plugins/dock-flash/set-plugin-entry',
+      path: '/plugins/dsh-flash/set-plugin-entry',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
@@ -1078,7 +1078,7 @@ export function apply(ctx: Context, config: FlashConfig) {
         value.application = 'applied'
         sendJson(res, 200, { ok: true, value })
       },
-    }), 'dock-flash: POST /plugins/dock-flash/set-plugin-entry')
+    }), 'dsh-flash: POST /plugins/dsh-flash/set-plugin-entry')
 
     // G · Memory trend — extracted to dsh-flash-mem-mon.
     //    Route: /plugins/dsh-flash-mem-mon/memory-trend
