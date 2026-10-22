@@ -213,7 +213,7 @@ pixel is not.
 **Swallowing the drag's click is the FIRST half of that handler, not the whole of it.** A hand-built
 element has to call `openPanel()`/`closePanel()` itself; a handler that stopped at the swallow left a
 button that mounted, positioned itself correctly and did nothing when pressed. `handleOutsideClick`
-already exempts `[data-dock-flash-trigger]`, and `dragMoved` is cleared by the next `mousedown` rather
+already exempts `[data-dsh-flash-trigger]`, and `dragMoved` is cleared by the next `mousedown` rather
 than by the drag's own end — which is why a click straight after a drag still works.
 
 > Every rule above is the residue of a defect. The defects in full, with the measurements and the
@@ -234,7 +234,7 @@ ignored. (The `external` path *does* strip it first; `inject` does not.)
 
 `cordis.patch.yml` is the bundle layer that inserts the host rows into the profile.
 
-- **HOST** (`src/index.ts` → `dist/index.js`; Node.js via Cordis) owns the `dock-flash` settings
+- **HOST** (`src/index.ts` → `dist/index.js`; Node.js via Cordis) owns the `dsh-flash` settings
   namespace, panel/trigger/alert configuration, and the HTTP routes
   (`GET /host-alerts`, `POST /push-alert`, `POST /clear-alerts`, `GET /health`, etc.).
 - **CLIENT** (`lib/client.js`; browser via `__ModuleLoader__`) owns the QuickControl registry
@@ -245,7 +245,7 @@ ignored. (The `external` path *does* strip it first; `inject` does not.)
 > `createSessionContextProvider`, the context thresholds and the model-window map),
 > `dsh-flash-mem-mon` the memory/GC monitor, `dsh-flash-net-mon` the network audit. Each holds
 > its own `settings` namespace, registers its provider through `ctx.get('dockFlashAlerts')` and
-> its switch through `ctx.get('quickControl')`. dock-flash keeps only the shared registries, the
+> its switch through `ctx.get('quickControl')`. dsh-flash keeps only the shared registries, the
 > host-pushed queue provider, and the companion integration lists (`_COMPANION_PREFIXES`,
 > `_PROVIDER_SWITCH_MAP`, `_PROVIDER_LABELS`, the cluster-expand and alerts-dependent id lists) —
 > **a new monitor means an entry in each of those, or its alerts lose their source label and their
@@ -348,7 +348,7 @@ touches; do not shorten a rule here by dropping the clause that makes it enforce
 
 **8. `_skinExclude` Must Be Checked in ALL Scan Phases** — One name predicate, `_skinAllowed(id)` — `_skinHint` AND `_skinExclude` — called from **all seven** scan phases; and one skin yields one id, the **package name**, canonicalized in the two phases that read a raw DOM string. See the Skin System section: the phases are restated there.
 
-**9. Never Use CSS `zoom` on `<html>` Element** — Never set CSS `zoom` on `document.documentElement` — even `zoom: 1` distorts `getBoundingClientRect()` and `clientX`, breaking DSH Web's sash drag. Legacy state is cleaned with `removeProperty('zoom')` + `localStorage.removeItem('dock-flash:zoom')`.
+**9. Never Use CSS `zoom` on `<html>` Element** — Never set CSS `zoom` on `document.documentElement` — even `zoom: 1` distorts `getBoundingClientRect()` and `clientX`, breaking DSH Web's sash drag. Legacy state is cleaned with `removeProperty('zoom')` + `localStorage.removeItem('dsh-flash:zoom')`.
 
 **10. Error Boundary Is Mandatory for Panel Components** — Wrap every panel component in `PanelErrorBoundary`: dock-base's `WorkbenchRoot` has no boundary, so one uncaught render error removes the activity bar and every panel.
 
@@ -391,7 +391,7 @@ The rules, one line each. Phase tables, case histories and measurements are in
 - **Managed skins** (Mineradio) own a canvas/WebGL lifecycle, so `_toggleManagedSkin()` writes the
   plugin's private key and drives the cross-tab `storage` event (Critical Rule 3). Installation is
   proven by the boot manifest, the module graph or the plugin's own style tag — **never by
-  `enabledKey` in localStorage**, which dock-flash writes itself — and `_managedInstallReason()` is
+  `enabledKey` in localStorage**, which dsh-flash writes itself — and `_managedInstallReason()` is
   the ONE predicate for that, called by the scan AND the flag sync.
 - **A handle-less skin is switched as a WHOLE PLUGIN** through `ctx.remote.pluginManager`;
   `_skinNotControllable()` is the ONE predicate for that shape. **Use the ENTRY switch, never the
@@ -569,7 +569,7 @@ and passed on a button nobody could click. Full procedure:
 
 - **Browser DevTools console**: `[dsh-flash]` prefixed logs for client-side events
 - **Host process console**: `[dsh-flash]` prefixed logs for host-side events
-- **localStorage**: Check `dock-flash:active-skin` key for skin persistence
+- **localStorage**: Check `dsh-flash:active-skin` key for skin persistence
 - **DOM**: Inspect `<style data-plugin>`, `<style data-skin-chrome>`, and `data-dsh-*` attributes for skin state
 
 ---

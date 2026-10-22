@@ -173,13 +173,13 @@ document.documentElement.style.zoom = '0.9'  // any non-default value
 
 // ✅ If cleanup is needed (legacy state from older versions):
 document.documentElement.style.removeProperty('zoom')
-localStorage.removeItem('dock-flash:zoom')
+localStorage.removeItem('dsh-flash:zoom')
 ```
 
 **Why it matters**: The CSS `zoom` property, even at its default visual value, changes how the browser reports element positions and event coordinates. DSH Web's sidebar sash relies on precise `clientX` deltas — a `zoom` property on `<html>` introduces a scaling factor that makes the drag calculation wrong.
 ## 10. Error Boundary Is Mandatory for Panel Components
 
-dock-base's `WorkbenchRoot` has NO error boundary. An uncaught render error in any panel component crashes the entire dock (activity bar + all panels disappear). Wrap every dock-flash panel component in `PanelErrorBoundary`.
+dock-base's `WorkbenchRoot` has NO error boundary. An uncaught render error in any panel component crashes the entire dock (activity bar + all panels disappear). Wrap every dsh-flash panel component in `PanelErrorBoundary`.
 ## 11. `require` Does Not Exist in the Host Half — It Is ESM
 
 `src/index.ts` compiles to ESM (`"type": "module"`, tsc `module: "esnext"`), and DSH's own entry is ESM too (`dsh` is `type: module`, `lib/bin.js` uses `import`). So inside the host half:
