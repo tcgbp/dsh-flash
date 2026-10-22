@@ -365,7 +365,7 @@ touches; do not shorten a rule here by dropping the clause that makes it enforce
 **Seven entry paths, one predicate per filter.** A skin reaches the dropdown through phase 0
 (managed), 1a (`style[data-plugin]`), 1b (`style[data-skin-chrome]`), 2 (body attributes), 4
 (`__DSH_BOOT__` / `graphRows`), 5 (a live mark from `_skinLiveMarks`) or 6 (installed but switched
-off, from the profile's own manifest — host route `/plugins/dock-flash/profile-packages`).
+off, from the profile's own manifest — host route `/plugins/dsh-flash/profile-packages`).
 **`_skinAllowed(id)` states BOTH filters (`_skinHint` AND `_skinExclude`) and is called from all
 seven** — see **Critical Rule 8**. Phases 5 and 6 exist because the usual sources can be blind: for a
 handle-less skin that is still rendering, a mark in the document IS proof of installation; and on DSH
@@ -423,7 +423,7 @@ The rules, one line each. Phase tables, case histories and measurements are in
   else is a switch — a UI control never edits the install layers, and a gate that can never
   pass is not a gate (the market-era one is gone).
 - **The entry id is NOT derivable** — `_entryIdCandidates()` only guesses, and `dsh-dream-skin`'s real
-  id is `dream-skin`. `POST /plugins/dock-flash/set-plugin-entry` is the authority because the HOST
+  id is `dream-skin`. `POST /plugins/dsh-flash/set-plugin-entry` is the authority because the HOST
   reads the package's own `cordis.patch.yml`. **Resolve the profile from `profileContext`, never
   `readdirSync` order**, and write the row with **no `name:`** — DSH skips a name mismatch, so the id
   alone addresses the entry. After the core/adapter split the core's specifier changed from

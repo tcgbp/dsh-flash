@@ -30,7 +30,7 @@ Nothing breaks by default. Your `^2.x` dependency range keeps you on the **old s
 
 > **One profile edit is required, and it is easy to miss.** In the profile's `cordis.patch.yml` the entry that carries your panel settings reads `- id: dock-flash` / `name: dock-flash`. That `name:` is an *assertion* about the target row's current specifier, not a rename. After the split, `id: dock-flash` resolves to **this** core row, whose specifier is `dsh-flash`, so the assertion mismatches, DSH prints ``patch: name mismatch for "dock-flash" (expected "dsh-flash", got "dock-flash"), skipping`` and the whole `config:` block is **dropped** — silently reverting your panel order, your skin and your trigger position/size. Change that entry's `name: dock-flash` to `name: dsh-flash` and keep `id: dock-flash`.
 
-> **The settings namespace itself does not change.** The profile patch **entry id** deliberately stays `dock-flash`, because that entry id *is* the settings namespace every already-published user preference lives under. The settings section, the persisted `dock-flash:…` keys and the `/plugins/dock-flash/…` host routes are all unchanged across the split — the `name:` fix above is the only edit the upgrade needs.
+> **The settings namespace itself does not change.** The profile patch **entry id** deliberately stays `dock-flash`, because that entry id *is* the settings namespace every already-published user preference lives under. The settings section and the persisted `dock-flash:…` keys stay unchanged. **The host routes are the exception**: as part of the core identity migration the six `/plugins/dock-flash/…` routes were renamed to `/plugins/dsh-flash/…` (see the route list below) — any client or companion plugin that `fetch`es those URLs must point at the new path.
 
 ## Modes
 
@@ -82,12 +82,12 @@ Built-in switches are grouped into Appearance / Layout / System (compact two-col
 
 - Registers the `dock-flash` settings namespace (panel preferences, trigger preferences, host alert queue settings)
 - Exposes HTTP routes:
-  - `GET /plugins/dock-flash/host-alerts` — drains the server-push alert queue
-  - `POST /plugins/dock-flash/push-alert` — pushes an alert into the queue
-  - `POST /plugins/dock-flash/clear-alerts` — clears the alert queue
-  - `GET /plugins/dock-flash/health` — lightweight heartbeat + Node.js memory stats
-  - `GET /plugins/dock-flash/profile-packages` — profile inventory for skin discovery
-  - `POST /plugins/dock-flash/set-plugin-entry` — live plugin enable/disable via patch edit
+  - `GET /plugins/dsh-flash/host-alerts` — drains the server-push alert queue
+  - `POST /plugins/dsh-flash/push-alert` — pushes an alert into the queue
+  - `POST /plugins/dsh-flash/clear-alerts` — clears the alert queue
+  - `GET /plugins/dsh-flash/health` — lightweight heartbeat + Node.js memory stats
+  - `GET /plugins/dsh-flash/profile-packages` — profile inventory for skin discovery
+  - `POST /plugins/dsh-flash/set-plugin-entry` — live plugin enable/disable via patch edit
 
 > **System proxy features have moved** to the [`dsh-flash-proxy`](https://github.com/tcgbp/dsh-flash-proxy) plugin — proxy mode, NO_PROXY policy, `testUrl`, connection diagnostics, and the five `dsh-flash-proxy:*` QuickControl switches now live there.
 
