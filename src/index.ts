@@ -1,11 +1,11 @@
-// dock-flash — HOST half of a dock feature plugin.
+// dsh-flash — HOST half of a dock feature plugin.
 //
 // This plugin is primarily client-side: the dock workbench runs in the
 // browser and all UI interaction happens through ctx.workbench. The host
 // half therefore only needs minimal plumbing.
 //
 // Host-side responsibilities:
-// - Registers the 'dock-flash' settings namespace so the client can
+// - Registers the 'dsh-flash' settings namespace so the client can
 //   persist panel preferences (order, active skin, trigger position, etc.)
 //   and alert thresholds via ctx.remote.settings.
 // - Exposes HTTP routes for the client to query host-side alert queue,
@@ -45,7 +45,7 @@ export interface FlashConfig {
    * A user preference, not a browser preference: it survives a different
    * browser, a cleared cache and a second machine, because it lives in
    * settings.yaml rather than in localStorage. Shape mirrors
-   * the client's `dock-flash:panel-order` value exactly — `builtin` and `ext`
+   * the client's `dsh-flash:panel-order` value exactly — `builtin` and `ext`
    * hold group keys, `switches` maps a scope-qualified group key to its unit
    * keys.
    */
@@ -481,7 +481,7 @@ export function apply(ctx: Context, config: FlashConfig) {
   async function writePatchDocument(
     file: string, dir: string, text: string,
   ): Promise<{ error?: string }> {
-    const temp = join(dir, '.' + PATCH_FILENAME + '.dock-flash-' + String(process.pid) + '.tmp')
+    const temp = join(dir, '.' + PATCH_FILENAME + '.dsh-flash-' + String(process.pid) + '.tmp')
     try {
       await writeFile(temp, text, { mode: 0o600 })
       await rename(temp, file)
@@ -494,7 +494,7 @@ export function apply(ctx: Context, config: FlashConfig) {
 
   /**
    * One log line for a patch edit that actually CHANGED the document: which file,
-   * what changed, and when. This is the host's `[dock-flash]` console, which is
+   * what changed, and when. This is the host's `[dsh-flash]` console, which is
    * where a DSH plugin's host half can report at all — there is no log surface in
    * the panel for it (the panel's `log` switches are client-side).
    *
@@ -857,7 +857,7 @@ export function apply(ctx: Context, config: FlashConfig) {
     }
   }
 
-  // When the settings service is available, register the dock-flash
+  // When the settings service is available, register the dsh-flash
   // namespace's page policy. Volatile fields in the exported `Config` schema
   // are what make this plugin's settings editable without restart —
   // `settings.configure` tells the settings UI to show a form for this
