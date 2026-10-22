@@ -8,8 +8,9 @@ name: Sync from Gitee
 #     dual-push cannot reach GitHub at all;
 #   * Gitee's "仓库镜像管理" push mirror has never delivered a commit.
 # Running here means the sync executes on GitHub's own runners: it needs no
-# local machine and no stored secret, because both repositories are public
-# and the built-in GITHUB_TOKEN performs the push.
+# local machine, because both repositories are public. The push to GitHub is
+# authenticated by the SYNC_PAT repository secret (a PAT with contents: write
+# on this repo).
 #
 # IMPORTANT: refspecs below are explicit rather than `git push --mirror`.
 # --mirror deletes refs the source does not have, which would delete this
@@ -38,7 +39,7 @@ jobs:
       - name: Mirror Gitee -> GitHub
         env:
           GITEE_URL: https://gitee.com/lenin.guo/dsh-flash.git
-          GITHUB_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/tcgbp/dsh-flash.git
+          GITHUB_URL: https://x-access-token:${{ secrets.SYNC_PAT }}@github.com/tcgbp/dsh-flash.git
         run: |
           set -euo pipefail
           git clone --bare "$GITEE_URL" repo.git
