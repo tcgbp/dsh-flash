@@ -980,7 +980,7 @@ git commit -m "feat(alerts): wire AlertRegistry into PluginEntry with providers 
 
 **Interfaces:**
 - Consumes: `alertRegistry.alertCount`, `alertRegistry.subscribe`
-- Produces: `data-dock-flash-alerts` attribute on overlay button; badge child element
+- Produces: `data-dsh-flash-alerts` attribute on overlay button; badge child element
 
 - [ ] **Step 1: Add badge element to overlay button**
 
@@ -1007,10 +1007,10 @@ Add a function inside the `mountStandaloneSlotTrigger` closure, after the badge 
           if (count > 0) {
             alertBadgeEl.textContent = count > 99 ? '99+' : String(count)
             alertBadgeEl.style.display = ''
-            el.setAttribute('data-dock-flash-alerts', String(count))
+            el.setAttribute('data-dsh-flash-alerts', String(count))
           } else {
             alertBadgeEl.style.display = 'none'
-            el.removeAttribute('data-dock-flash-alerts')
+            el.removeAttribute('data-dsh-flash-alerts')
           }
           // Also update the slot button if it exists (handled via React in QuickTriggerIconButton)
         }
@@ -1091,8 +1091,8 @@ In the return statement of `QuickTriggerIconButton` (around line 4500), modify t
         // Replace the existing return with:
         return h('button', {
           type: 'button',
-          'data-dock-flash-trigger': '',
-          'data-dock-flash-alerts': alertCount > 0 ? String(alertCount) : undefined,
+          'data-dsh-flash-trigger': '',
+          'data-dsh-flash-alerts': alertCount > 0 ? String(alertCount) : undefined,
           'aria-label': t('title'),
           'aria-expanded': active,
           title: t('title'),

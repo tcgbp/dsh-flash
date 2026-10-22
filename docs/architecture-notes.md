@@ -363,7 +363,7 @@ el.addEventListener('click', function (e) {
 It never called `openPanel()`. `QuickTriggerIconButton` is a React button and gets its toggle from its
 own `onClick`; a hand-built element has to ask for it, and this one never did. So the button mounted,
 positioned itself perfectly — the probe printed `ok — element flex at 1236px,84px` — and was inert.
-`handleOutsideClick` already exempts `[data-dock-flash-trigger]`, so the closing half is not racing
+`handleOutsideClick` already exempts `[data-dsh-flash-trigger]`, so the closing half is not racing
 it, and `dragMoved` is cleared by the next `mousedown` rather than by the drag's own end, which is why
 a click straight after a drag still works.
 

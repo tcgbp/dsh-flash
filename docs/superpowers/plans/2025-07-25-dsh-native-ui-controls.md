@@ -76,7 +76,7 @@ Align every visual control in dock-flash (`lib/client.js`) with DSH's native com
 - [x] **2.2** Update `S.toggleOn` (on-state track): background brand-primary token — `S.toggleOn` ~line 1200
 - [x] **2.3** Update `S.toggleThumb` (off-state thumb): 16×16px, borderRadius 50%, background label-primary-foreground, transition transform 120ms ease — `S.toggleThumb` ~line 1213
 - [x] **2.4** Update `S.toggleThumbOn` (on-state thumb): transform translateX(16px), no left/marginLeft — `S.toggleThumbOn` ~line 1222
-- [x] **2.5** Add focus ring to toggle renderer — `data-dock-flash-focus` attribute + role/aria/onKeyDown in `renderToggleSwitch` — ~line 5253
+- [x] **2.5** Add focus ring to toggle renderer — `data-dsh-flash-focus` attribute + role/aria/onKeyDown in `renderToggleSwitch` — ~line 5253
 - [x] **2.6** Verify toggle in both light and dark themes — tokens handle theme switching automatically
 
 ### Phase 3: Slider → accent-color Range
@@ -85,14 +85,14 @@ Align every visual control in dock-flash (`lib/client.js`) with DSH's native com
 - [x] **3.2** ~~Update `S.sliderFill`~~ — N/A (same reason as 3.1)
 - [x] **3.3** ~~Update `S.sliderThumb`~~ — N/A (same reason as 3.1)
 - [x] **3.4** Add `accent-color` to the slider — `S.slider` already has `accentColor: 'var(--dsw-alias-brand-primary, #000)'` — ~line 1031
-- [x] **3.5** Add focus ring to slider — `data-dock-flash-focus` on the input element — ~line 5301
+- [x] **3.5** Add focus ring to slider — `data-dsh-flash-focus` on the input element — ~line 5301
 
 ### Phase 4: Select → DSH Input-style
 
 - [x] **4.1** Update `S.selectInput`: 32px height, 0.5px border-l4, R.md radius, bg-layer-1 — ~line 1113
 - [x] **4.2** Update select element styling: height 100%, border none, background transparent, label-primary color — ~line 1113
-- [x] **4.3** Add focus state — handled via `data-dock-flash-focus` + injected `<style>` rule (inline styles cannot express `:focus-visible`, so the focus ring approach replaces the border-color change) — ~line 5363
-- [x] **4.4** Add focus ring to select wrapper — `data-dock-flash-focus` attribute — ~line 5363
+- [x] **4.3** Add focus state — handled via `data-dsh-flash-focus` + injected `<style>` rule (inline styles cannot express `:focus-visible`, so the focus ring approach replaces the border-color change) — ~line 5363
+- [x] **4.4** Add focus ring to select wrapper — `data-dsh-flash-focus` attribute — ~line 5363
 
 ### Phase 5: Button Group → DSH SegmentedControl
 
@@ -108,7 +108,7 @@ Align every visual control in dock-flash (`lib/client.js`) with DSH's native com
 - [x] **6.1** Update `S.btnAction`: 28px height, R.sm, 0.5px border-l3, ghost variant (transparent bg) — ~line 1169
 - [x] **6.2** Add hover/active states — onMouseEnter → interactive-bg-hover, onMouseDown → interactive-bg-active, onMouseLeave → transparent — ~line 5475
 - [x] **6.3** ~~Add disabled state~~ — N/A: dock-flash action switches have no disabled state in the API (`QuickControlRegistry` does not support disabled actions). Adding an unused disabled style would be dead code.
-- [x] **6.4** Add focus ring — `data-dock-flash-focus` attribute — ~line 5477
+- [x] **6.4** Add focus ring — `data-dsh-flash-focus` attribute — ~line 5477
 
 ### Phase 7: Modal/Dialog → DSH Modal
 
@@ -136,8 +136,8 @@ Align every visual control in dock-flash (`lib/client.js`) with DSH's native com
 
 ### Phase 11: Focus Ring Injection
 
-- [x] **11.1** Create `injectFocusStyles()` function — one-time `<style>` injection targeting `[data-dock-flash-focus]:focus-visible` — ~line 2504
-- [x] **11.2** Add `data-dock-flash-focus` to all interactive elements — 19 total: 6 React renderers (toggle, slider, numberInput, select, btnAction, btnGroup tab), 2 React modal/trigger buttons, 7 imperative DOM elements (cobBtn, closeBtn×2, overlayTrigger, alertDropdownItem, toastClose), 1 menuLabel helper — ~lines 4702–9228
+- [x] **11.1** Create `injectFocusStyles()` function — one-time `<style>` injection targeting `[data-dsh-flash-focus]:focus-visible` — ~line 2504
+- [x] **11.2** Add `data-dsh-flash-focus` to all interactive elements — 19 total: 6 React renderers (toggle, slider, numberInput, select, btnAction, btnGroup tab), 2 React modal/trigger buttons, 7 imperative DOM elements (cobBtn, closeBtn×2, overlayTrigger, alertDropdownItem, toastClose), 1 menuLabel helper — ~lines 4702–9228
 - [x] **11.3** Remove `outline: 'none'` from interactive element styles — removed from workbench btnStyle and overlay trigger cssText. Only comment references remain. — verified by grep
 
 ### Phase 12: Standalone Mode Chrome
@@ -173,7 +173,7 @@ Align every visual control in dock-flash (`lib/client.js`) with DSH's native com
 - [x] Select wrapper matches Input.module.css styling (0.5px border, 32px height, `--dsw-radius-md`)
 - [x] Action button matches Button.module.css (sm variant: 28px, ghost/outline/primary)
 - [x] Modal uses `--dsw-radius-panel` (28px) and `--dsw-elevation-prominent`
-- [x] All interactive elements have focus-visible rings via injected `<style>` + `data-dock-flash-focus`
+- [x] All interactive elements have focus-visible rings via injected `<style>` + `data-dsh-flash-focus`
 - [x] No behavioral changes — all switch types, panel ordering, skin system, proxy cluster work identically
 - [x] Light and dark themes both render correctly (tokens handle the switch automatically)
 - [x] `pnpm run check:overlay` passes
@@ -194,6 +194,6 @@ Align every visual control in dock-flash (`lib/client.js`) with DSH's native com
 | Hardcoded rgba outside var() | ✅ 0 remaining (all inside token fallbacks) |
 | Hardcoded borderRadius (not 999px) | ✅ 0 remaining |
 | `outline: 'none'` style declarations | ✅ 0 remaining (2 comment references only) |
-| `data-dock-flash-focus` coverage | ✅ 19 elements (8 React + 7 imperative + 2 modal + 1 menu + 1 injected rule) |
+| `data-dsh-flash-focus` coverage | ✅ 19 elements (8 React + 7 imperative + 2 modal + 1 menu + 1 injected rule) |
 
 Items 13.5–13.9 require a live browser session for manual visual/functional verification and are left unchecked pending that testing.
