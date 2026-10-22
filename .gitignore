@@ -39,7 +39,6 @@ CLAUDE.md
 .graphflow-cache/
 .graphflow/
 graphflow-out/
-pnpm-lock.yaml
 
 # Archify diagram outputs — generated `.archify/<type>-<slug>-<timestamp>/` folders
 # (interactive HTML diagrams, candidate JSON, delivery receipts and captures). They are
