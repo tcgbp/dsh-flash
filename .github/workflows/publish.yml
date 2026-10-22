@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'  # 仅当推送类似 v1.0.0 的标签时触发
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的 Tag（例如 v1.0.0）'
+        required: true
+        type: string
 
 jobs:
   publish:
@@ -15,6 +21,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }} # 手动触发时使用输入的 tag，自动触发时使用 github.ref
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
