@@ -35,7 +35,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.14.0'
-          registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
 
       # 3. 用 pnpm 安装依赖（--frozen-lockfile 等价于 npm ci）
@@ -48,6 +47,10 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-      # 4. 用 pnpm 发布，OIDC 会自动生效
+      # 4. 发布前强制升级 npm，确保 Trusted Publishing（OIDC）可用
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install -g npm@latest
+
+      # 5. 用 pnpm 发布，OIDC 会自动生效
       - name: Publish to npm
         run: pnpm publish --access public --no-git-checks --provenance
