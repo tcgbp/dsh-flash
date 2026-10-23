@@ -8,6 +8,18 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.3.0
+
+**Alert detail panel now renders plugin-registered actions** (`lib/client.js`). A provider
+that raises an alert can attach `actions: [{id, label, primary, onClick(alert, api)}]`; the
+detail modal renders each as a button (primary styling for the first flagged `primary`), and
+`onClick` may be sync or async and either return a settlement object `{message, level, close}`
+or a string — a string ending in `!` closes the alert, otherwise the message shows as a small
+status line under the buttons. Buttons are re-enabled after handling unless the action closed
+the alert. This is the shared renderer consumed by `dsh-flash-net-mon`'s *Disable
+session-log-deepseek* action on its session-log-upload alert. No new service or route; the
+provider wiring (`ctx.get('dockFlashAlerts')` registry) already existed.
+
 ## 1.2.1
 
 **Tooling and release machinery only — no change to the shipped consumer build.** This patch
