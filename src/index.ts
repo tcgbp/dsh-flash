@@ -31,6 +31,11 @@ import { fileURLToPath } from 'node:url'
 import type { Volatile } from '@deepseek-ai/cordis'
 // Default export only (`export default Schema`); there is no named `Schema`.
 import Schema from '@deepseek-ai/schemastery'
+// Static, per Critical Rule 11: this half is ESM, so a `require('yaml')` here
+// would be a ReferenceError — and one swallowed by a try/catch would leave the
+// patch validator never importing, exactly how the old `dock-flash` namespace
+// stopped registering. `yaml` is declared in `package.json` dependencies.
+import { parse as yamlParse } from 'yaml'
 
 export const name = 'dsh-flash'
 
@@ -370,6 +375,13 @@ export const Config = Schema.object({
   hostAlertQueueCap: Schema.number().default(DEFAULT_HOST_ALERT_QUEUE_CAP).volatile(),
   hostAlertMaxAge: Schema.number().default(DEFAULT_HOST_ALERT_MAX_AGE).volatile(),
 
+  // ── E · Patch document editor (QuickControl "edit patch document") ─────
+  // Host preference, client-owned: whether saving a patch edit from the panel
+  // additionally runs an LLM deep review (semantic content-safety check) over
+  // the new text. Opaque to the host — it is a boolean gate the client reads
+  // and acts on; a missing/unsupported remote degrades to "no review" and
+  // never blocks a save (see the client's `_requestPatchReview`).
+  patchLlmReview: Schema.boolean().default(false).volatile(),
 
 })
 
@@ -524,6 +536,112 @@ export function apply(ctx: Context, config: FlashConfig) {
       (disabled ? 'disable' : 'enable') + ' entry=' + id + ' file=' + oneLine(file),
     )
     for (const line of summary) console.log('[dsh-flash] patch   ' + oneLine(line))
+  }
+
+  /**
+   * The two-layer validation the panel's "edit patch document" flush runs before
+   * a save is allowed: (1) real syntax-level YAML parsing (yaml@^2, same parser
+   * everywhere else), and (2) content-safety checks over the parsed structure.
+   *
+   * The parse layer is BLOCKING — a YAML type error means the document could not
+   * be read at all, so a save that produced one is refused (the error is
+   * presented, nothing is written). Everything the structure layer reports as a
+   * hard `error` also blocks the save; `warning`s never do — they are "double
+   * check this" markers (an empty result, an unmapped entry), not "this is
+   * broken".
+   *
+   * What the structure layer enforces, each once:
+   *   - The document must parse to a top-level LIST (a patch document is a list
+   *     of entries; a bare mapping would never load as one).
+   *   - Every list element should be a mapping; anything else is a `warning`
+   *     (a scalar comment-like row is suspicious but the loader is lenient).
+   *   - An entry needs a string `id`; a missing/blank one is a `warning` (the
+   *     loader skips such rows but it is almost never what the user meant).
+   *   - NO duplicate ids — two rows claiming the same entry is how the Dream
+   *     double-row defect started, and it is a hard `error`.
+   *   - `disabled`, when present, must be the boolean true/false — a string
+   *     "true" silently fails to switch, so it is a hard `error`.
+   *   - Unknown fields outside the known patch-entry set are `warning`s, not
+   *     errors: a newer loader may add fields this validated set does not know.
+   *   - `config` is left untrusted but flagged: the entry edits CONFIG, which is
+   *     the most sensitive thing a patch row can touch, so it is worth a second
+   *     look (warning, not a block).
+   *
+   * Returns `{ ok, errors, warnings }`; `ok` is `errors.length === 0`. The raw
+   * error text from the parser is preserved verbatim so a malformed document
+   * shows the line the user must fix.
+   */
+  function validatePatchText(text: string): {
+    ok: boolean
+    errors: string[]
+    warnings: string[]
+  } {
+    const errors: string[] = []
+    const warnings: string[] = []
+    let root: unknown
+    try {
+      root = yamlParse(text)
+    } catch (e) {
+      const msg = (e as Error).message || String(e)
+      // yaml@^2 error messages already carry the offending line/column.
+      errors.push('YAML parse error: ' + String(msg).replace(/\s+/g, ' ').trim())
+      return { ok: false, errors, warnings }
+    }
+    // Empty document — patch badly broken, do not persist it.
+    if (root === null || root === undefined) {
+      errors.push('The patch document is empty.')
+      return { ok: false, errors, warnings }
+    }
+    if (!Array.isArray(root)) {
+      errors.push('The patch document must be a top-level list of entries.')
+      return { ok: false, errors, warnings }
+    }
+    // Fields a patch entry may legitimately carry. Anything else is suspicious
+    // enough to warn about, but never blocking.
+    const KNOWN_FIELDS = new Set(['id', 'name', 'disabled', 'config', 'active', 'inject'])
+    const seenIds = new Set<string>()
+    root.forEach((entry: unknown, i: number) => {
+      const line = 'entry #' + (i + 1)
+      if (entry === null || entry === undefined) {
+        // The user's document had a bare `-` (empty list item); lenient but worth a note.
+        warnings.push(line + ': an empty list item — the loader will skip it.')
+        return
+      }
+      if (typeof entry !== 'object' || Array.isArray(entry)) {
+        warnings.push(line + ': not a mapping — patch entries should be `- id: …` mappings.')
+        return
+      }
+      const map = entry as Record<string, unknown>
+      const id = map.id
+      if (typeof id !== 'string' || id.trim() === '') {
+        warnings.push(line + ': missing a string `id`.')
+        return
+      }
+      if (seenIds.has(id)) errors.push('Duplicate entry id "' + id + '" (' + line + ')')
+      seenIds.add(id)
+      if (map.disabled !== undefined && typeof map.disabled !== 'boolean') {
+        errors.push(
+          line + ' (' + id + '): `disabled` must be true or false, got ' +
+          JSON.stringify(map.disabled),
+        )
+      }
+      if (map.name !== undefined && typeof map.name !== 'string') {
+        warnings.push(line + ' (' + id + '): `name` should be a string.')
+      }
+      for (const key of Object.keys(map)) {
+        if (KNOWN_FIELDS.has(key)) continue
+        warnings.push(line + ' (' + id + '): unknown field "' + key + '".')
+      }
+      if (map.config !== undefined && map.config !== null) {
+        warnings.push(
+          line + ' (' + id + '): this entry carries a `config` — a save will write it verbatim.',
+        )
+      }
+    })
+    if (root.length === 0) {
+      warnings.push('The patch document has no entries — saving an empty list.')
+    }
+    return { ok: errors.length === 0, errors, warnings }
   }
 
   /**
@@ -1079,6 +1197,77 @@ export function apply(ctx: Context, config: FlashConfig) {
         sendJson(res, 200, { ok: true, value })
       },
     }), 'dsh-flash: POST /plugins/dsh-flash/set-plugin-entry')
+
+    // F2 · The patch DOCUMENT editor ("edit patch document" in the panel). The
+    // client reads the whole profile patch here and writes it back, verbatim —
+    // no YAML round trip, so comments, ordering and formatting survive. The
+    // HOST owns this because, like the live switch above, a browser plugin has
+    // no other way to address the reserved profile.
+    //
+    // GET  → `{ ok, dir, exists, text, error }` — the current document text, or
+    //        an empty string with `exists: false` when the profile has no patch
+    //        yet (the panel then starts from a fresh document).
+    // POST → `{ text }`; validated with validatePatchText() and written
+    //        atomically iff it passes. Reply `{ ok, validation, dir }` where
+    //        `validation = { ok, errors, warnings }`; `ok:false` means nothing
+    //        was written and `errors` says why.
+    wsCtx.effect(() => wsCtx.webServer.register({
+      kind: 'exact',
+      path: '/plugins/dsh-flash/patch-document',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method === 'GET') {
+          const dir = (await readProfilePackages()).dir
+          if (!dir) {
+            sendJson(res, 200, {
+              ok: true, dir: null, exists: false, text: '',
+              error: 'the profile directory could not be resolved',
+            })
+            return
+          }
+          let text = ''
+          let exists = false
+          let error: string | undefined
+          try {
+            text = await readFile(join(dir, PATCH_FILENAME), 'utf8')
+            exists = true
+          } catch (e) {
+            const code = (e as NodeJS.ErrnoException).code
+            if (code === 'ENOENT') {
+              // No patch document yet — a fresh start, not a fault.
+            } else {
+              error = String((e as Error).message || e)
+            }
+          }
+          sendJson(res, 200, { ok: true, dir, exists, text, error })
+          return
+        }
+        if (req.method === 'POST') {
+          const body = await readJsonBody(req, 256 * 1024)
+          const text = body && typeof body.text === 'string' ? body.text : ''
+          const fail = (code: string, message: string) => {
+            sendJson(res, 200, { ok: false, error: { code, message } })
+          }
+          const dir = (await readProfilePackages()).dir
+          if (!dir) return fail('unaddressable', 'the profile directory could not be resolved')
+          const validation = validatePatchText(text)
+          if (!validation.ok) {
+            // Refused BEFORE any write — the caller's document is the problem,
+            // and nothing on disk changes.
+            sendJson(res, 200, { ok: false, validation, dir })
+            return
+          }
+          const outcome = await writePatchDocument(join(dir, PATCH_FILENAME), dir, text)
+          if (outcome.error) return fail('operation-error', outcome.error)
+          logPatchWrite(join(dir, PATCH_FILENAME), 'whole-document', false,
+            ['saved via patch document editor'])
+          sendJson(res, 200, { ok: true, validation, dir })
+          return
+        }
+        res.statusCode = 405
+        res.setHeader('allow', 'GET, POST')
+        res.end()
+      },
+    }), 'dsh-flash: GET+POST /plugins/dsh-flash/patch-document')
 
     // G · Memory trend — extracted to dsh-flash-mem-mon.
     //    Route: /plugins/dsh-flash-mem-mon/memory-trend
