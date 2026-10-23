@@ -8,6 +8,27 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.2.1
+
+**Tooling and release machinery only — no change to the shipped consumer build.** This patch
+commits the pnpm-era publish setup that landed after 1.2.0 and wires a first automated test, with
+zero `src/index.ts` / `lib/client.js` changes, so `dist/index.js` is unchanged and no rebuild was
+needed.
+
+- **npm publish workflow (`.github/workflows/publish.yml`)**, OIDC provenance (`id-token: write`) on
+  version tags, plus `workflow_dispatch` support for re-releasing historical tags. Grant list trimmed
+  to what publishing actually needs.
+- **Gitee→GitHub mirror (`sync-from-gitee.yml`)** now uses `SYNC_PAT` instead of `GITHUB_TOKEN` for
+  the push, and the workflow permission surface is reduced (`workflows: write` removed).
+- **`pnpm-lock.yaml` is tracked** (removed from `.gitignore`) and declared via the new `test` script.
+- **First automated smoke test (`test/smoke.test.mjs`, `pnpm test`)**: asserts the overlay mounts with
+  the `slots` service never arriving and the conversation appearing only after mount, and checks the
+  `dsh-flash` / `dock-flash` / `dock-flash-proxy` package identities.
+
+> The version number itself is all that moves here — this is the first release cut under the
+> pnpm/OIDC publish path, so the observable change for a consumer is simply a fresh `dsh-flash` and an
+> independently verifiable source tarball.
+
 ## 1.2.0
 
 **The core/adapter split lands as a released identity: the consumer-facing specifier changes from `dock-flash` to `dsh-flash`.** This release formalises the split already shipped in the working tree — the core is published under its own name (`dsh-flash`) and its own `cordis.patch.yml` row (`id: dsh-flash`, `name: dsh-flash`), while the dock-base `ctx.workbench` integration stays in the separate `dock-flash` adapter package. It is the release gate for every rename already committed since 1.1.0, because a consumer sees the *new* specifier.
