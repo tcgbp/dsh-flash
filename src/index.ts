@@ -563,9 +563,6 @@ export function apply(ctx: Context, config: FlashConfig) {
    *     "true" silently fails to switch, so it is a hard `error`.
    *   - Unknown fields outside the known patch-entry set are `warning`s, not
    *     errors: a newer loader may add fields this validated set does not know.
-   *   - `config` is left untrusted but flagged: the entry edits CONFIG, which is
-   *     the most sensitive thing a patch row can touch, so it is worth a second
-   *     look (warning, not a block).
    *
    * Returns `{ ok, errors, warnings }`; `ok` is `errors.length === 0`. The raw
    * error text from the parser is preserved verbatim so a malformed document
@@ -631,11 +628,6 @@ export function apply(ctx: Context, config: FlashConfig) {
       for (const key of Object.keys(map)) {
         if (KNOWN_FIELDS.has(key)) continue
         warnings.push(line + ' (' + id + '): unknown field "' + key + '".')
-      }
-      if (map.config !== undefined && map.config !== null) {
-        warnings.push(
-          line + ' (' + id + '): this entry carries a `config` — a save will write it verbatim.',
-        )
       }
     })
     if (root.length === 0) {
