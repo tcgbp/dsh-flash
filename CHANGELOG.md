@@ -20,6 +20,37 @@ the alert. This is the shared renderer consumed by `dsh-flash-net-mon`'s *Disabl
 session-log-deepseek* action on its session-log-upload alert. No new service or route; the
 provider wiring (`ctx.get('dockFlashAlerts')` registry) already existed.
 
+**Patch document editor, now with multi-file switching and a custom picker** (`lib/client.js` +
+`src/index.ts`). The editor gained a host-backed way to enumerate every patch document under the
+DSH home — the active profile's own `cordis.patch.yml` first (so the pre-dropdown single-document
+behaviour is preserved exactly), plus the HOME-level one and each profile directory's. Every
+candidate is listed including ones that do not exist yet (`exists: false`), so a HOME patch or a
+profile without a patch still opens as an empty, savable document instead of vanishing from the
+list. `exists`/`mtime` come from a single `stat` call so they never disagree.
+
+- **Custom file picker dropdown** in the editor header replaces the native `<select>` option list
+  for switching among the resolvable documents. The OS-drawn native list can neither be
+  width-bounded nor wrap; the picker is pure DOM — absolute under the trigger, each row wrapping
+  (`word-break`) inside a `max-width` column. The trigger shows the selected path wrapping inside
+  the room left by the close button, with a larger caret (▾/▴) signalling expand/collapse.
+- **mtime display**: each candidate row reports its last-modified time alongside the path.
+- **Line alignment fix (`fix(patch)` history)**: the transparent textarea now shares the font
+  metrics of the highlighted `<pre>` under it, and a drag-select on the overlay no longer drifts
+  from the highlighted text.
+- **Editor lifecycle fixes**: the patch editor renders inside the QuickControl panel, reuses a
+  single React root so it can reopen after closing, and reopens correctly after being closed via
+  the panel close button. The toast on stray-config entries and the title-button save flow (with
+  its `cordis.patch.yml` label) were likewise straightened out.
+- **While the editor is open, the quick-control "close on blur" setting is temporarily turned OFF**
+  so clicking outside the panel (or the corner trigger / quick-panel toggling) does not unmount the
+  whole editor with it. The previous value is recorded and restored when the panel or editor closes,
+  and also on a mount failure or a stale detach — the user's setting is never left permanently off.
+
+**Companion switch grouping** (`lib/client.js`). The `dsh-flash-skin` companion switches now
+render as built-in controls grouped under the *skin theme* subgroup, and the patch-document edit +
+content-review toggles sit in one cluster (fold-free select members), keeping third-party rows out
+of the built-in layout.
+
 ## 1.2.1
 
 **Tooling and release machinery only — no change to the shipped consumer build.** This patch
