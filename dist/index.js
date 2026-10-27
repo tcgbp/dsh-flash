@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { platform, homedir } from 'node:os';
 import { existsSync, readdirSync } from 'node:fs';
-import { readFile, writeFile, rename, unlink } from 'node:fs/promises';
+import { readFile, stat, writeFile, rename, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // Default export only (`export default Schema`); there is no named `Schema`.
@@ -828,6 +828,66 @@ export function apply(ctx, config) {
                 'with dsh.profile.bundles): ' + tried.join(', '),
         };
     }
+    /**
+     * Enumerate every patch DOCUMENT the editor can switch between: the active
+     * profile's own `cordis.patch.yml` plus the HOME-level one and each profile
+     * directory's, all under the DSH home (`$DSH_HOME` or `~/.dsh`).
+     *
+     * The active profile's document is FIRST and selected by default, so the
+     * single-record behaviour that predates the dropdown is preserved exactly.
+     * Every candidate is included even when it does not exist yet (`exists:
+     * false`) — a HOME patch or a profile without a patch must still open as an
+     * empty, savable document rather than vanish from the list.
+     *
+     * `stat` on a missing path throws ENOENT and is the cheap existence check, so
+     * `exists`/`mtime` come from the same call and never disagree.
+     */
+    async function listPatchCandidates() {
+        const home = readLaunchEnv(['DSH_HOME']) || join(homedir(), '.dsh');
+        const rows = [];
+        const activeDir = (await readProfilePackages()).dir;
+        if (activeDir)
+            rows.push({ path: join(activeDir, PATCH_FILENAME), label: 'active' });
+        rows.push({ path: join(home, PATCH_FILENAME), label: 'HOME' });
+        try {
+            for (const entry of readdirSync(join(home, 'profiles'))) {
+                rows.push({ path: join(home, 'profiles', entry, PATCH_FILENAME), label: entry });
+            }
+        }
+        catch (_) { /* $DSH_HOME/profiles absent — nothing more to offer */ }
+        const seen = new Set();
+        const files = [];
+        const ordered = [...rows];
+        if (activeDir) {
+            // Re-assert the active entry's label even if it was also discovered as a
+            // profile, and re-list it FIRST.
+            const activeIdx = ordered.findIndex((r) => r.path === join(activeDir, PATCH_FILENAME));
+            if (activeIdx > 0) {
+                const [activeRow] = ordered.splice(activeIdx, 1);
+                ordered.unshift(activeRow);
+            }
+        }
+        for (const { path, label } of ordered) {
+            if (seen.has(path))
+                continue;
+            seen.add(path);
+            let exists = false;
+            let mtime;
+            try {
+                mtime = (await stat(path)).mtimeMs;
+                exists = true;
+            }
+            catch (_) { /* ENOENT — keep the entry */ }
+            files.push({
+                path,
+                label,
+                active: !!activeDir && path === join(activeDir, PATCH_FILENAME),
+                exists,
+                mtime,
+            });
+        }
+        return { files, active: activeDir ? join(activeDir, PATCH_FILENAME) : null };
+    }
     // When the settings service is available, register the dsh-flash
     // namespace's page policy. Volatile fields in the exported `Config` schema
     // are what make this plugin's settings editable without restart —
@@ -1046,11 +1106,19 @@ export function apply(ctx, config) {
         // HOST owns this because, like the live switch above, a browser plugin has
         // no other way to address the reserved profile.
         //
-        // GET  → `{ ok, dir, exists, text, error }` — the current document text, or
-        //        an empty string with `exists: false` when the profile has no patch
-        //        yet (the panel then starts from a fresh document).
-        // POST → `{ text }`; validated with validatePatchText() and written
-        //        atomically iff it passes. Reply `{ ok, validation, dir }` where
+        // Several patch documents can be switched between: the active profile's own
+        // `cordis.patch.yml`, the HOME-level one, and every profile directory's.
+        // `files` enumerates them all (active first, so the pre-dropdown default is
+        // unchanged); an optional `path` selects which one to read/write, defaulting
+        // to the active profile's when absent.
+        //
+        // GET  → `{ ok, files, active, dir, exists, text, mtime, error }` — the
+        //        selected document's text and modification time, or `exists:false`
+        //        when that file has no patch yet (the panel then starts fresh).
+        // POST → `{ text, path? }`; validated with validatePatchText() and written
+        //        atomically to the selected document iff it passes. `path` must name
+        //        one of the enumerated `files` — writes never leave the set. Reply
+        //        `{ ok, files, active, validation, dir, mtime }` where
         //        `validation = { ok, errors, warnings }`; `ok:false` means nothing
         //        was written and `errors` says why.
         wsCtx.effect(() => wsCtx.webServer.register({
@@ -1058,19 +1126,35 @@ export function apply(ctx, config) {
             path: '/plugins/dsh-flash/patch-document',
             handler: async (req, res) => {
                 if (req.method === 'GET') {
-                    const dir = (await readProfilePackages()).dir;
-                    if (!dir) {
+                    const { files, active } = await listPatchCandidates();
+                    // Honor an explicit `?path=` only when it names one of the resolvable
+                    // documents; otherwise fall back to the active profile's patch, and on
+                    // no active profile to the HOME-level one via `active`.
+                    const url = new URL(req.url || '/', 'http://dsh.local');
+                    const wanted = url.searchParams.get('path');
+                    let selected = active;
+                    if (wanted && Array.isArray(files)) {
+                        for (const f of files)
+                            if (f.path === wanted) {
+                                selected = f.path;
+                                break;
+                            }
+                    }
+                    if (!selected) {
                         sendJson(res, 200, {
-                            ok: true, dir: null, exists: false, text: '',
-                            error: 'the profile directory could not be resolved',
+                            ok: true, files: null, active: null, dir: null, exists: false, text: '',
+                            error: 'no patch document could be resolved',
                         });
                         return;
                     }
                     let text = '';
                     let exists = false;
+                    let mtime;
                     let error;
                     try {
-                        text = await readFile(join(dir, PATCH_FILENAME), 'utf8');
+                        const st = await stat(selected);
+                        mtime = st.mtimeMs;
+                        text = await readFile(selected, 'utf8');
                         exists = true;
                     }
                     catch (e) {
@@ -1082,7 +1166,10 @@ export function apply(ctx, config) {
                             error = String(e.message || e);
                         }
                     }
-                    sendJson(res, 200, { ok: true, dir, exists, text, error });
+                    sendJson(res, 200, {
+                        ok: true, files, active: selected, dir: dirname(selected),
+                        exists, text, mtime, error,
+                    });
                     return;
                 }
                 if (req.method === 'POST') {
@@ -1091,21 +1178,36 @@ export function apply(ctx, config) {
                     const fail = (code, message) => {
                         sendJson(res, 200, { ok: false, error: { code, message } });
                     };
-                    const dir = (await readProfilePackages()).dir;
-                    if (!dir)
-                        return fail('unaddressable', 'the profile directory could not be resolved');
+                    const { files, active } = await listPatchCandidates();
+                    const wanted = body && typeof body.path === 'string' && body.path ? body.path : active;
+                    let target = null;
+                    if (Array.isArray(files)) {
+                        for (const f of files)
+                            if (f.path === wanted) {
+                                target = f.path;
+                                break;
+                            }
+                    }
+                    if (!target)
+                        return fail('unaddressable', 'target patch document is not among the resolvable ones');
+                    const dir = dirname(target);
                     const validation = validatePatchText(text);
                     if (!validation.ok) {
                         // Refused BEFORE any write — the caller's document is the problem,
                         // and nothing on disk changes.
-                        sendJson(res, 200, { ok: false, validation, dir });
+                        sendJson(res, 200, { ok: false, validation, dir, files, active: target });
                         return;
                     }
-                    const outcome = await writePatchDocument(join(dir, PATCH_FILENAME), dir, text);
+                    const outcome = await writePatchDocument(target, dir, text);
                     if (outcome.error)
                         return fail('operation-error', outcome.error);
-                    logPatchWrite(join(dir, PATCH_FILENAME), 'whole-document', false, ['saved via patch document editor']);
-                    sendJson(res, 200, { ok: true, validation, dir });
+                    logPatchWrite(target, 'whole-document', false, ['saved via patch document editor']);
+                    let mtime;
+                    try {
+                        mtime = (await stat(target)).mtimeMs;
+                    }
+                    catch (_) { /* best-effort */ }
+                    sendJson(res, 200, { ok: true, validation, dir, files, active: target, mtime });
                     return;
                 }
                 res.statusCode = 405;
