@@ -51,6 +51,13 @@ render as built-in controls grouped under the *skin theme* subgroup, and the pat
 content-review toggles sit in one cluster (fold-free select members), keeping third-party rows out
 of the built-in layout.
 
+**Display metadata for the plugin card** (`package.json` + new `icon.svg`, `locale/en.json`,
+`locale/zh.json`). The core now satisfies the plugin display-metadata contract so Plugin Manager /
+Settings can render its card without activating the plugin: an exported `./icon` (the ⚡ lightning
+bolt, 64×64, rounded-square amber gradient on a dark-slate glyph — the same brand mark the panel
+uses) and `locale/*.json` `meta.title`/`meta.description` in English and Chinese, exported via the
+`./locale/*.json` subpath with the new files added to `files`. No host/client runtime code changes.
+
 ## 1.2.1
 
 **Tooling and release machinery only — no change to the shipped consumer build.** This patch
