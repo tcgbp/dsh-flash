@@ -2889,18 +2889,18 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
   }
 
   const WEB = 'C:/Users/x/.dsh/profiles/web'
-  const ALL = ['dsh-flash-ctx-mon', 'dsh-flash-mem-mon', 'dsh-flash-net-mon', 'dsh-flash-proxy']
+  const ALL = ['dsh-flash-ctx-mon', 'dsh-flash-mem-mon', 'dsh-flash-net-mon', 'dsh-flash-proxy', 'dsh-flash-skin']
 
   // ── (a) nothing installed: every row says not installed, and the command is complete ──
   {
     const t = await setup(okProfile(WEB, []))
     check('the log switch is registered',
       !!t.sw, 'switch=' + !!t.sw)
-    check('nothing installed -> all four are named as NOT installed',
+    check('nothing installed -> all five are named as NOT installed',
       !!t.lines && ALL.every((p) => t.lines.includes(p) && t.lines.includes('not installed')),
       t.lines)
-    check('...and the meta counts all four as not running',
-      t.meta === '4 not running', JSON.stringify(t.meta))
+    check('...and the meta counts all five as not running',
+      t.meta === '5 not running', JSON.stringify(t.meta))
     check('...and the command is the real one, with the profile NAME from the route',
       !!t.lines && t.lines.includes('dsh plugin --profile web add ' + ALL.join(' ')),
       t.lines && t.lines.split('\n').filter((l) => l.startsWith('dsh plugin'))[0])
@@ -2917,11 +2917,11 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     check('...and it is NOT in the install command (you already have it)',
       !!t.lines && !t.lines.split('\n').filter((l) => l.startsWith('dsh plugin'))[0].includes('dsh-flash-proxy'),
       t.lines && t.lines.split('\n').filter((l) => l.startsWith('dsh plugin'))[0])
-    check('...while the other three still are',
-      !!t.lines && ['dsh-flash-ctx-mon', 'dsh-flash-mem-mon', 'dsh-flash-net-mon']
+    check('...while the other four still are',
+      !!t.lines && ['dsh-flash-ctx-mon', 'dsh-flash-mem-mon', 'dsh-flash-net-mon', 'dsh-flash-skin']
         .every((p) => t.lines.split('\n').filter((l) => l.startsWith('dsh plugin'))[0].includes(p)),
       t.lines)
-    check('the meta counts the idle one too', t.meta === '4 not running', JSON.stringify(t.meta))
+    check('the meta counts the idle one too', t.meta === '5 not running', JSON.stringify(t.meta))
   }
 
   // ── (c) a REGISTERED companion is not reported at all ──────────────────────────────────
@@ -2933,7 +2933,7 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     const lines = t.sw.getLines().join('\n')
     check('a registered companion disappears from the list',
       !lines.includes('dsh-flash-ctx-mon'), lines)
-    check('...and is not counted', t.sw.getMeta() === '3 not running', t.sw.getMeta())
+    check('...and is not counted', t.sw.getMeta() === '4 not running', t.sw.getMeta())
     check('...and its name is out of the command',
       !lines.split('\n').filter((l) => l.startsWith('dsh plugin'))[0].includes('dsh-flash-ctx-mon'), lines)
   }
@@ -2944,7 +2944,7 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     check('an unreadable profile list reports every companion as UNKNOWN',
       !!t.lines && ALL.every((p) => t.lines.includes(p))
         // Count ROW lines, not the word: the hint below them mentions "state unknown" too.
-        && t.lines.split('\n').filter((l) => l.endsWith('state unknown')).length === 4,
+        && t.lines.split('\n').filter((l) => l.endsWith('state unknown')).length === 5,
       t.lines)
     check('...and the words "not installed" appear NOWHERE  <-- the assertion that matters',
       !!t.lines && !t.lines.includes('not installed'), t.lines)
@@ -2975,7 +2975,7 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     check('the Chinese rendering carries the same three states',
       !!t.lines && t.lines.includes('未安装') && t.lines.includes('已安装，但未运行'),
       t.lines)
-    check('...and its meta is Chinese too', t.meta === '未运行 4 项', JSON.stringify(t.meta))
+    check('...and its meta is Chinese too', t.meta === '未运行 5 项', JSON.stringify(t.meta))
     check('...and the idle hint explains the distinction',
       !!t.lines && t.lines.includes('已安装，但未运行」表示它的开关没有出现'), t.lines)
     check('...while the command line stays locale-independent',
@@ -3035,10 +3035,10 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     const cmd = t.lines && t.lines.split('\n').filter((l) => l.startsWith('dsh plugin'))[0]
     check('dock-base installed but no adapter -> dock-flash is named as NOT installed',
       !!t.lines && t.lines.includes('dock-flash  Workbench adapter — not installed'), t.lines)
-    check('...and it is appended to the install command, after the four monitors',
-      !!t.lines && !!cmd && cmd.endsWith('dsh-flash-proxy dock-flash'), cmd)
-    check('...and the meta counts it (4 monitors + the adapter)',
-      t.meta === '5 not running', JSON.stringify(t.meta))
+    check('...and it is appended to the install command, after the five companions',
+      !!t.lines && !!cmd && cmd.endsWith('dsh-flash-skin dock-flash'), cmd)
+    check('...and the meta counts it (5 companions + the adapter)',
+      t.meta === '6 not running', JSON.stringify(t.meta))
   }
   {
     const t = await setup(okProfile(WEB, ['dock-base', 'dock-flash']))
