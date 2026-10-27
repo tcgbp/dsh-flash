@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "快捷控制",
+    "description": "DSH 工作台的快捷控制面板核心 —— 带可扩展开关注册表、皮肤系统与告警面板的浮动/停靠快捷控制面板。发布 `dockFlashPanel` 服务；dock-base 集成以 `dock-flash` 独立插件随附。"
+  }
+}
