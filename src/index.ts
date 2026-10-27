@@ -769,6 +769,53 @@ export function apply(ctx: Context, config: FlashConfig) {
     return { changed: true }
   }
 
+  /**
+   * Reconcile a package's membership in the profile's `dsh.profile.bundles`
+   * roster — the layer the running loader actually composes at boot. This is the
+   * SECOND half of a skin switch, kept on the HOST so a press is self-sufficient.
+   * DSH's own plugin page reaches both layers through its remote, but on DSH
+   * Desktop that remote refuses this reserved profile (`listBundles()` is empty
+   * there), so the bundle layer is only ever written from here. An OFF that only
+   * flips the entry row is not durable: a package still listed in `bundles` is
+   * recomposed at the next boot, and one dropped from `bundles` without its row
+   * un-flipped can never come back. Write both and the two layers always agree.
+   *
+   * Read-modify-write is atomic (same-directory temp + rename, the same writer
+   * as the patch document), so a reader never sees a half-written manifest. The
+   * roster keeps its existing order and formatting; only membership changes.
+   */
+  async function setProfileBundle(
+    dir: string, target: string, enabled: boolean,
+  ): Promise<{ changed: boolean; error?: string }> {
+    const file = join(dir, 'package.json')
+    let pkg: any
+    try {
+      pkg = JSON.parse(await readFile(file, 'utf8'))
+    } catch (error) {
+      return {
+        changed: false,
+        error: 'profile package.json unreadable: ' + String((error as Error).message || error),
+      }
+    }
+    const raw = pkg && pkg.dsh && pkg.dsh.profile && pkg.dsh.profile.bundles
+    if (!Array.isArray(raw)) {
+      return { changed: false, error: 'profile package.json carries no dsh.profile.bundles roster' }
+    }
+    const has = raw.indexOf(target) !== -1
+    if (enabled === has) return { changed: false }
+    const next = enabled ? raw.slice().concat(target) : raw.filter((n: unknown) => n !== target)
+    pkg.dsh.profile.bundles = next
+    const text = JSON.stringify(pkg, null, 2) + '\n'
+    const wrote = await writePatchDocument(file, dir, text)
+    if (wrote.error) return { changed: false, error: wrote.error }
+    logPatchWrite(file, target, !enabled, [
+      '  reason: bundle roster changed on the ' + (enabled ? 'ON' : 'OFF') + ' side',
+      '  ' + (enabled ? 'added ' : 'removed ') + target +
+        (enabled ? ' to dsh.profile.bundles' : ' from dsh.profile.bundles'),
+    ])
+    return { changed: true }
+  }
+
   /** The launch-environment snapshot DSH resolved the boot-time policy from. */
   function launchEnvironment(): EnvLookup | null {
     try {
@@ -1202,11 +1249,15 @@ export function apply(ctx: Context, config: FlashConfig) {
 
     // F · The LIVE plugin switch. The client remote cannot address anything on DSH
     // Desktop — `unknown-plugin` for every id, because its inventory does not
-    // manage this reserved profile — and the bundle layer only shapes the NEXT
-    // boot. So this route performs the edit DSH's OWN plugin manager performs:
-    // set/clear `disabled:` in the profile's patch document, atomically. The
-    // loader watches that document, which is what makes the change land on the
-    // RUNNING page rather than at the next restart.
+    // manage this reserved profile. So this route performs the edit DSH's OWN
+    // plugin manager performs, on both layers together: set/clear `disabled:` in
+    // the profile's patch document (atomically — the loader watches that
+    // document, which is what makes the change land on the RUNNING page at once)
+    // AND reconcile the package's membership in `dsh.profile.bundles` (so the
+    // next boot does not recompose it, and re-enabling a dropped bundle actually
+    // restores it). Writing only the entry row used to leave a bundle-listed
+    // plugin running across a restart, which is the case the official manager's
+    // own switch handles and a row-only write does not.
     //
     // The reply deliberately mirrors the remote's `ChangeResult` shape
     // (`{ ok, value: { stage, target, enabled, changed, application, error } }`)
@@ -1237,12 +1288,18 @@ export function apply(ctx: Context, config: FlashConfig) {
         const entryId = await entryIdFor(dir, target)
         const outcome = await setPatchDisabled(dir, entryId, !enabled)
         if (outcome.error) return fail('operation-error', outcome.error)
-        value.changed = outcome.changed
-        // `applied`, MEASURED — the earlier `restart-required` here was MY error, not
-        // DSH's: the row this route first wrote omitted the required `name:`, so the loader
-        // ignored it and the plugin kept running. With the correct shape
-        // (`- id: X` / `name: X` / `disabled: true`) the running loader drops the plugin at
-        // once, with no restart — exactly how the peer plugin `dshmarket` behaves.
+        const roster = await setProfileBundle(dir, target, enabled)
+        if (roster.error) return fail('operation-error', roster.error)
+        value.changed = outcome.changed || roster.changed
+        // `applied` — the two layers above are the SAME two DSH's own plugin page
+        // writes on the web profile: the entry row (keyed by the ENTRY id, with
+        // `name:` deliberately omitted — `applyEntryPatches` skips a row whose
+        // `name` differs, and echoing the entry id into `name:` is exactly the
+        // mismatch that made an earlier version of this route's rows inert) and the
+        // `dsh.profile.bundles` roster that shapes the next boot. Meeting both is
+        // what lets the running loader drop the plugin at once with no restart, and
+        // is why the official manager's own switch succeeds where a row-only write
+        // did not.
         value.application = 'applied'
         sendJson(res, 200, { ok: true, value })
       },
