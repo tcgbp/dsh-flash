@@ -8,12 +8,14 @@
   "exports": {
     ".": "./dist/index.js",
     "./client": "./lib/client.js",
+    "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "lib",
     "cordis.patch.yml",
+    "icon.svg",
     "README.md"
   ],
   "repository": {
