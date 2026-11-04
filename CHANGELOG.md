@@ -8,6 +8,13 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.3.1
+
+**Plain black lightning-bolt logo** (`icon.svg`). The display icon changed from the rounded-square
+amber gradient / dark-slate glyph to the plain brand mark: a pure white rounded-square background with
+the ⚡ lightning bolt drawn solid black (`#000000`) — no color. Display metadata only; no host or
+client runtime code changed.
+
 ## 1.3.0
 
 **Alert detail panel now renders plugin-registered actions** (`lib/client.js`). A provider
