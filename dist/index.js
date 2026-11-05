@@ -309,6 +309,33 @@ export function apply(ctx, config) {
      * namespace, now `dsh-flash`).
      */
     const PLUGIN_NAMES = ['dsh-flash', 'dock-flash'];
+    // ── Host-side log buffer ─────────────────────────────────────────────
+    // There is no host-side log surface on DSH Desktop: the host process's
+    // console is not visible in the GUI, so this plugin's host half may do work
+    // (patch writes, preference migration) the user can never see reported. This
+    // in-memory ring buffer captures every line this plugin's host half emits
+    // (the `[dsh-flash]` console), and the panel reads it back through
+    // GET /plugins/dsh-flash/host-logs — the desktop user's only way to read its
+    // host logs. Like the host alert queue it is in-memory (lost on restart),
+    // capped, and never a file.
+    const HOST_LOG_CAP = 400;
+    // One entry per emitted line; `level` mirrors the console method that
+    // produced it ('info' | 'warn' | 'error'), `ts` is wall-clock ms, `text` is
+    // the single, newline-free rendered line.
+    const hostLogs = [];
+    /**
+     * Append one rendered line to the in-memory host-log buffer. Pure capture —
+     * the existing console/`ctx.logger` emit stays exactly where it is, so this
+     * adds a surface without re-routing (or re-formatting) any real logger.
+     * A string should never contain a newline; if one leaks in it is folded so a
+     * record never splits into two rows.
+     */
+    function _captureHostLog(level, text) {
+        const oneLine = text.replace(/[\r\n]+/g, ' ');
+        hostLogs.push({ ts: Date.now(), level, text: oneLine });
+        if (hostLogs.length > HOST_LOG_CAP)
+            hostLogs.splice(0, hostLogs.length - HOST_LOG_CAP);
+    }
     // ── Memory trend collector — extracted to dsh-flash-mem-mon ──────────
     /**
      * The profile's PATCH document — the `disabled:` row DSH's own plugin manager
@@ -369,10 +396,15 @@ export function apply(ctx, config) {
         const abs = Math.abs(offsetMin);
         const zone = sign + pad(Math.floor(abs / 60)) + ':' + pad(abs % 60);
         const oneLine = (v) => v.replace(/[\r\n]+/g, ' ');
-        console.log('[dsh-flash] patch ' + at.toISOString() + ' (' + local + ' ' + zone + ') ' +
-            (disabled ? 'disable' : 'enable') + ' entry=' + id + ' file=' + oneLine(file));
-        for (const line of summary)
-            console.log('[dsh-flash] patch   ' + oneLine(line));
+        const head = '[dsh-flash] patch ' + at.toISOString() + ' (' + local + ' ' + zone + ') ' +
+            (disabled ? 'disable' : 'enable') + ' entry=' + id + ' file=' + oneLine(file);
+        console.log(head);
+        for (const line of summary) {
+            const body = '[dsh-flash] patch   ' + oneLine(line);
+            console.log(body);
+            _captureHostLog('info', body);
+        }
+        _captureHostLog('info', head);
     }
     /**
      * The two-layer validation the panel's "edit patch document" flush runs before
@@ -946,7 +978,11 @@ export function apply(ctx, config) {
         // namespace). Fail-open: any error is logged and never aborts apply().
         // No-op after the first successful run (see migratePrefsFromDockFlash).
         const target = settingsCtx.settings;
-        void migratePrefsFromDockFlash(target, (msg) => ctx.logger.warn(msg)).then(() => { }, (e) => ctx.logger.warn(`[dsh-flash] ns migration: unexpected error (${String(e)})`));
+        const migrationLog = (msg) => {
+            _captureHostLog('warn', msg);
+            ctx.logger.warn(msg);
+        };
+        void migratePrefsFromDockFlash(target, migrationLog).then(() => { }, (e) => migrationLog(`[dsh-flash] ns migration: unexpected error (${String(e)})`));
     });
     // React to volatile config updates in-place. The loader's `_commitVolatile()`
     // updates the `Volatile<T>` references in `config` and then emits
@@ -1051,6 +1087,40 @@ export function apply(ctx, config) {
                 sendJson(res, 200, { ok: true, cleared: count });
             },
         }), 'dsh-flash: POST /plugins/dsh-flash/clear-alerts');
+        // D · Host-side log viewer — the desktop user's only read surface for this
+        // plugin's host logs. Unlike the draining alert queue, GET here returns the
+        // whole ring buffer and leaves it intact (non-draining view), so the panel
+        // can refresh in place; the ✕ routes to clear-host-logs below.
+        wsCtx.effect(() => wsCtx.webServer.register({
+            kind: 'exact',
+            path: '/plugins/dsh-flash/host-logs',
+            handler: async (req, res) => {
+                if (req.method !== 'GET') {
+                    res.statusCode = 405;
+                    res.setHeader('allow', 'GET');
+                    res.end();
+                    return;
+                }
+                sendJson(res, 200, { logs: hostLogs.slice() });
+            },
+        }), 'dsh-flash: GET /plugins/dsh-flash/host-logs');
+        // Clear the host-side log buffer — called when the panel's host-log ✕ is
+        // pressed, symmetric with clear-alerts above.
+        wsCtx.effect(() => wsCtx.webServer.register({
+            kind: 'exact',
+            path: '/plugins/dsh-flash/clear-host-logs',
+            handler: async (req, res) => {
+                if (req.method !== 'POST') {
+                    res.statusCode = 405;
+                    res.setHeader('allow', 'POST');
+                    res.end();
+                    return;
+                }
+                const count = hostLogs.length;
+                hostLogs.length = 0;
+                sendJson(res, 200, { ok: true, cleared: count });
+            },
+        }), 'dsh-flash: POST /plugins/dsh-flash/clear-host-logs');
         // D-owned connectivity heartbeat — the client's network-alert provider
         // polls THIS route to gauge latency (proxy status is in `dsh-flash-proxy`).
         // A probe that answers quickly regardless of proxy state is exactly what a
