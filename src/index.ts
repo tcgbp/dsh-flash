@@ -1562,6 +1562,31 @@ export function apply(ctx: Context, config: FlashConfig) {
       },
     }), 'dsh-flash: GET+POST /plugins/dsh-flash/patch-document')
 
+    // F3 · Patch DOCUMENT "validate preview". The panel checks each item of a
+    // patch one-by-one on save (when the `patchLlmReview` switch is on) and
+    // shows pass/fail per item BEFORE anything is written. Structural checks —
+    // top-level must be an array, duplicate ids are hard errors, unknown fields
+    // are warnings, `disabled` must be a boolean — live in validatePatchText()
+    // on the HOST, so a browser plugin cannot run them itself. This route just
+    // runs that pure, side-effect-free function over the supplied text and
+    // returns the per-item `errors` / `warnings` arrays; it never writes.
+    wsCtx.effect(() => wsCtx.webServer.register({
+      kind: 'exact',
+      path: '/plugins/dsh-flash/validate-patch',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.setHeader('allow', 'POST')
+          res.end()
+          return
+        }
+        const body = await readJsonBody(req, 256 * 1024)
+        const text = body && typeof body.text === 'string' ? body.text : ''
+        const validation = validatePatchText(text)
+        sendJson(res, 200, { ok: true, validation })
+      },
+    }), 'dsh-flash: POST /plugins/dsh-flash/validate-patch')
+
     // G · Memory trend — extracted to dsh-flash-mem-mon.
     //    Route: /plugins/dsh-flash-mem-mon/memory-trend
   })
