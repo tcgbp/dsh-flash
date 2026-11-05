@@ -3,6 +3,7 @@ import { platform, homedir } from 'node:os';
 import { existsSync, readdirSync } from 'node:fs';
 import { readFile, stat, writeFile, rename, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { format as utilFormat } from 'node:util';
 import { fileURLToPath } from 'node:url';
 // Default export only (`export default Schema`); there is no named `Schema`.
 import Schema from '@deepseek-ai/schemastery';
@@ -319,23 +320,104 @@ export function apply(ctx, config) {
     // host logs. Like the host alert queue it is in-memory (lost on restart),
     // capped, and never a file.
     const HOST_LOG_CAP = 400;
-    // One entry per emitted line; `level` mirrors the console method that
-    // produced it ('info' | 'warn' | 'error'), `ts` is wall-clock ms, `text` is
-    // the single, newline-free rendered line.
+    // One entry per emitted line; `level` mirrors the logger / console severity
+    // ('error' | 'warn' | 'info' | 'debug'), `name` is the emitting logger's
+    // scope (ours is 'dsh-flash', others appear when the exporter observes their
+    // host log lines), `ts` is wall-clock ms, `text` is the single, newline-free
+    // rendered line.
     const hostLogs = [];
+    /** Fold CR/LF so a record never splits into two rows. */
+    function _foldNewlines(s) {
+        return String(s).replace(/[\r\n]+/g, ' ');
+    }
     /**
      * Append one rendered line to the in-memory host-log buffer. Pure capture —
-     * the existing console/`ctx.logger` emit stays exactly where it is, so this
-     * adds a surface without re-routing (or re-formatting) any real logger.
-     * A string should never contain a newline; if one leaks in it is folded so a
-     * record never splits into two rows.
+     * the real console/`ctx.logger` emit stays exactly where it is (or, for the
+     * exporter path, already happened), so this only adds a surface, never
+     * re-routes or re-formats any real logger. `name` is the logger scope that
+     * produced the line; default to this plugin's own.
      */
-    function _captureHostLog(level, text) {
-        const oneLine = text.replace(/[\r\n]+/g, ' ');
-        hostLogs.push({ ts: Date.now(), level, text: oneLine });
+    function _captureHostLog(level, text, name = 'dsh-flash') {
+        hostLogs.push({ ts: Date.now(), level, name, text: _foldNewlines(text) });
         if (hostLogs.length > HOST_LOG_CAP)
             hostLogs.splice(0, hostLogs.length - HOST_LOG_CAP);
     }
+    // ── Host-wide logger export (the "all host logs" surface) ───────────────
+    // Instead of only the explicit `_captureHostLog` points above, register a
+    // cordis log exporter that observes EVERY record any plugin routes through
+    // `ctx.logger` in this host process, feeding the SAME panel buffer. This is
+    // observation only — a logger sink is never replaced, so host logging is
+    // unchanged and this stays fail-open. Two cordis caveats drive the shape:
+    //   * the built-in buffer exporter drops warn/debug (its exporters fall back
+    //     to each logger's default level of info), so a seeded pre-mount history
+    //     can only ever contain error+info; asking for `default: 3` (all levels)
+    //     is what lets the exporter itself see warn/debug live.
+    //   * cordis's exporter() disposer deletes the most recently registered
+    //     exporter rather than its own, so a stale copy may survive a reload and
+    //     would otherwise detach a sibling sink; the `active` flag makes a stale
+    //     copy go inert instead. The disposer is therefore NOT invoked on teardown.
+    let _hostLogActive = true;
+    let _lastHostLogSn = -1;
+    /** Render a cordis log record the way it reads as a single host line. */
+    function _renderCordisLog(m) {
+        try {
+            const args = Array.isArray(m.args) ? [...m.args] : [];
+            // Cordis templates use %C and %c, which util.format leaves literal; map both.
+            if (typeof args[0] === 'string')
+                args[0] = args[0].replace(/%([Cc])/g, '%s');
+            return _foldNewlines(utilFormat(...args));
+        }
+        catch {
+            try {
+                return _foldNewlines(String(m.args?.[0]));
+            }
+            catch {
+                return '[unprintable]';
+            }
+        }
+    }
+    try {
+        // Best effort: seed pre-mount history from the built-in buffer. Inside a
+        // plugin fiber ctx.logger is a per-plugin Logger instance; the service
+        // (which owns the buffer) is reachable as .service — try both.
+        const buffer = ctx.logger.buffer ?? ctx.logger.service?.buffer;
+        if (Array.isArray(buffer)) {
+            for (const m of [...buffer].sort((a, b) => a.sn - b.sn)) {
+                if (m && typeof m === 'object' && m.sn !== undefined) {
+                    const rec = m;
+                    if (rec.sn > _lastHostLogSn) {
+                        _lastHostLogSn = rec.sn;
+                        _captureHostLog(rec.type === 'error' ? 'error' : rec.type === 'warn' ? 'warn' : rec.type === 'debug' ? 'debug' : 'info', _renderCordisLog(rec), rec.name ?? 'dsh-flash');
+                    }
+                }
+            }
+        }
+    }
+    catch { /* no buffer — start empty */ }
+    ctx.effect(() => {
+        // process.stderr fails asynchronously ('error' event, not a throw) when the
+        // pipe closes, e.g. a dying tee; without a listener that kills the host.
+        const swallow = () => { };
+        process.stderr.on('error', swallow);
+        return () => {
+            _hostLogActive = false;
+            process.stderr.off('error', swallow);
+        };
+    }, 'dsh-flash: host log lifecycle');
+    ctx.logger.exporter({
+        levels: { default: 3 },
+        export: (m) => {
+            try {
+                if (!_hostLogActive)
+                    return;
+                if (m.sn === undefined || m.sn <= _lastHostLogSn)
+                    return;
+                _lastHostLogSn = m.sn;
+                _captureHostLog(m.type === 'error' ? 'error' : m.type === 'warn' ? 'warn' : m.type === 'debug' ? 'debug' : 'info', _renderCordisLog(m), m.name ?? 'dsh-flash');
+            }
+            catch { /* a log sink must never throw */ }
+        },
+    });
     // ── Memory trend collector — extracted to dsh-flash-mem-mon ──────────
     /**
      * The profile's PATCH document — the `disabled:` row DSH's own plugin manager
@@ -979,7 +1061,7 @@ export function apply(ctx, config) {
         // No-op after the first successful run (see migratePrefsFromDockFlash).
         const target = settingsCtx.settings;
         const migrationLog = (msg) => {
-            _captureHostLog('warn', msg);
+            // ctx.logger drives the host-wide exporter, so no separate capture needed.
             ctx.logger.warn(msg);
         };
         void migratePrefsFromDockFlash(target, migrationLog).then(() => { }, (e) => migrationLog(`[dsh-flash] ns migration: unexpected error (${String(e)})`));
