@@ -8,6 +8,31 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.4.0
+
+**The `主机端日志` switch becomes a host-wide logger viewer** (`lib/client.js` + `src/index.ts`).
+The old toggle rendered a fixed, pre-scoped slice of host output; it now captures **every** plugin's
+`ctx.logger` output in the host process and streams it back to the panel over a dedicated route.
+
+- **Host**: a ring buffer holds the most recent `[dsh-flash]`-prefixed log records, seeded from the
+  logger's own buffer (`ctx.logger.buffer` / `ctx.logger.service?.buffer`) so nothing already logged is
+  lost when the panel first opens. A two-route pair exposes it: `GET
+  /plugins/dsh-flash/host-logs` returns the ring; `POST /plugins/dsh-flash/clear-host-logs` empties it.
+- **Exporter + stale-exporter guard**: the host registers a `ctx.logger.exporter({ levels: { default: 3 },
+  export })` to append new records as they are emitted, and stamps an `active` flag so a replaced exporter
+  (Cordis can delete the wrong disposer object) is treated as inert rather than double-captured. A
+  monotonic per-record sequence number dedupes records across the seed and the live stream.
+- **Client**: the `log` switch polls the route every 10 s, renders the ring newest-last with a per-record
+  scope label, and its ✕ clear button now **serializes** — the POST is awaited before the follow-up GET,
+  so the panel actually empties instead of racing back to full (the earlier silently-racing bug is fixed
+  here). The entry always shows, `emptyText` covering the no-capture state.
+- **Level filter** (`dock-flash:host-log-level`): a `select` switch alongside the viewer filters records
+  by level (全部/错误/警告/信息/调试). Its `setValue` only stores state and notifies — the viewer reads
+  the stored filter on render, so toggling never duplicates changelog entries (Critical Rule 7).
+
+All error paths fail open: a missing logger, a rejected fetch, or a synchronous remote throw leaves the
+panel functional rather than wedging `apply()`.
+
 ## 1.3.1
 
 **Plain black lightning-bolt logo** (`icon.svg`). The display icon changed from the rounded-square
