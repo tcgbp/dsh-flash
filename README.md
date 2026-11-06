@@ -1,43 +1,8 @@
 # dsh-flash
 
-> Quick Control panel **core** for the DSH web UI — the floating/docked quick-control panel with an **extensible switch registry** other plugins register their own controls into, the skin system, zh/en i18n and the alert surfaces. The DSH **Workbench** (dock-base) integration ships separately as the `dock-flash` adapter.
+> Quick Control panel **core** for the DSH web UI — the floating quick-control panel with an **extensible switch registry** other plugins register their own controls into, the skin system, zh/en i18n and the alert surfaces.
 
 **[中文文档](./README.zh-CN.md)**
-
-## Core + adapter
-
-This package is the **panel** and nothing else. It owns the React panel, the `quickControl` switch registry, the skin system, the alert surfaces, the standalone floating ⚡ trigger, and the whole host half (`src/index.ts` → `dist/index.js`). It has **no dependency on dock-base at all**, so it runs on its own, and it *always* offers the panel and the ⚡ trigger. A dock host takes the panel by claiming the `dockFlashPanel` service; only then does the core stand its own ⚡ down.
-
-The dock-base (Workbench) integration is a separate, thin **adapter** package — `dock-flash` v3 — that depends on this one and registers the panel, the plugin card, the activity-bar item, the editor view and the command through `ctx.workbench`.
-
-```
-dsh-flash ──provides "dockFlashPanel"──▶ dock-flash ──ctx.workbench──▶ dock-base Workbench
-   this package: panel, switch              the adapter: 5 registrations
-   registry, skins, i18n, alerts,           + the claim/release handshake
-   standalone ⚡, host routes
-```
-
-The dependency arrow points **one way**: this package never imports or names `dock-flash`. It publishes the service and stands its own ⚡ down when a host claims it; whoever claims it is a stranger it does not have to know about. That is what lets the panel work both standalone and under dock-base from one build, and why the core can be installed on a profile that has no dock-base at all.
-
-| What you want | Install | You get |
-| --- | --- | --- |
-| Workbench (dock-base) integration | `dock-flash@^3`, which pulls this package in — plus `dock-base` | Sidebar/floating panel, plugin card, activity-bar ⚡, editor view, the `dock-flash:openQuickControl` command |
-| Only the standalone floating ⚡ | `dsh-flash` alone | A ⚡ trigger in the configured conversation slot → floating panel |
-
-### Upgrading from `dock-flash` v2
-
-Nothing breaks by default. Your `^2.x` dependency range keeps you on the **old single package**, which still exists under the same name — the split added a new major (`dock-flash@^3`) rather than replacing v2. To move to the split, install `dock-flash@^3`; it depends on this package and pulls it in.
-
-> **One profile edit is required, and it is easy to miss.** In the profile's `cordis.patch.yml` the entry that carries your panel settings reads `- id: dock-flash` / `name: dock-flash`. That `name:` is an *assertion* about the target row's current specifier, not a rename. After the split, `id: dock-flash` resolves to **this** core row, whose specifier is `dsh-flash`, so the assertion mismatches, DSH prints ``patch: name mismatch for "dock-flash" (expected "dsh-flash", got "dock-flash"), skipping`` and the whole `config:` block is **dropped** — silently reverting your panel order, your skin and your trigger position/size. Change that entry's `name: dock-flash` to `name: dsh-flash` and keep `id: dock-flash`.
-
-> **The settings namespace itself does not change.** The profile patch **entry id** deliberately stays `dock-flash`, because that entry id *is* the settings namespace every already-published user preference lives under. The settings section and the persisted `dock-flash:…` keys stay unchanged. **The host routes are the exception**: as part of the core identity migration the six `/plugins/dock-flash/…` routes were renamed to `/plugins/dsh-flash/…` (see the route list below) — any client or companion plugin that `fetch`es those URLs must point at the new path.
-
-## Modes
-
-| Mode | Condition | UI | Available switches |
-| --- | --- | --- | --- |
-| **Claimed** (Workbench) | the `dock-flash` adapter (and dock-base) installed | ⚡ in the activity bar → sidebar/floating panel; the core's standalone ⚡ is suppressed while the panel is claimed | Appearance + System |
-| **Standalone** | `dsh-flash` installed alone | ⚡ trigger in the configured conversation slot → floating panel | Appearance + Layout + System |
 
 ## Features
 
@@ -50,14 +15,21 @@ Built-in switches are grouped into Appearance / Layout / System (compact two-col
 | 🎨 Appearance | Theme | select | Lists what the theme service publishes, minus the dead options. While a theme publishes its **own palette** (Dream: Abyss / Aurora / …), those palettes are the list and Light / Dark / System are withheld — the palette paints over the base scheme and fixes its own colour scheme, so none of the three could do anything. With no palette published — no skin installed, **or a restyling skin such as Claude** — the list is Light / Dark / System, and Follow-system really does resolve against the OS | ✅ |
 | 🎨 Appearance | Skin | select | Dynamically discovers installed skin plugins and switches between them, through DSH's **own plugin manager** — dsh-market is neither needed nor consulted. Every switch writes BOTH layers: the loader ENTRY row (what the running page acts on) and `dsh.profile.bundles` (what the next boot composes), because writing only one of them is how a skin came back after a reload, or could never be switched on again | ✅ |
 | 🎨 Appearance | Turn Rail | toggle | Moves DSH's built-in turn navigator from the right gutter to the left. Hidden unless DSH's own rail is on screen and no other timeline plugin owns it | ✅ |
+| 🎨 Appearance | Language | buttongroup | 中文 / English — switches DSH global UI language | ✅ |
 | 🎨 Appearance | Fullscreen | toggle | Browser Fullscreen API — enter/exit fullscreen | ✅ |
 | 🎨 Appearance | Log Download | toggle | Show/hide the session log download button | ✅ |
 | 📐 Layout | Close on Blur | buttongroup | Off / On — auto-close the panel when clicking outside. Also a toggle in the panel header (both modes) | ✅ |
 | 📐 Layout | Trigger Position | select | Input Left / Input Right / Session Header / Header Utils — where the standalone ⚡ trigger goes — or **Conversation top-right**, a floating button inside the conversation you can drag anywhere within it | ✅ |
 | 📐 Layout | Trigger Button Size | slider | 24–64 px — how big the standalone ⚡ entry point is drawn, glyph and corner radius included. The draggable **Conversation top-right** position allows the full range; the slot positions cap at **48px** so the button still fits the input row, and the row shows the size actually in force | ✅ |
 | 🖱️ Right-click | *(the draggable ⚡ itself)* | menu | **Reset position** / current offset / version (click to copy a diagnostic) / **layer** and **rest opacity** presets. Not a switch in the panel: the layer and the opacity only apply to the floating button, and the menu deliberately does not repeat `trigger-size`, `trigger-position` or `close-on-blur` | ✅ |
-| ⚙️ System | Language | buttongroup | 中文 / English — switches DSH global UI language | ✅ |
-| ⚙️ System | Missing Companions | log | Names every companion plugin that is not **running**, splitting `installed, not running` from `not installed` — a package that is present but silent is a different problem from one that is absent. Read-only: it prints the `dsh plugin --profile <name> add …` command for the ones genuinely missing (and points at the DSH Plugins page on the reserved `desktop` profile, which the CLI refuses), plus a copy button. A ✕ hides both rows through the same visibility store the ◉ mode writes, so nothing is unregistered and ticking them again brings them back | ✅ |
+| ⚙️ System | System Alerts | toggle | The bell switch — master on/off for the alert registry. Turning it off also stops the polling and clears every alert queue it feeds (host provider, the toast surface, dismissed state and the host-side alert buffer); turning it back on restarts polling and the display modes | ✅ |
+| ⚙️ System | Alert Toast | toggle | Shows alerts as a toast at the conversation's top-right. A member of the `system-alerts` cluster, so it only appears while System Alerts is on; it runs in both docked and standalone modes (it mounts on `document.body`) and only disappears from the panel while alerts are off | ✅ |
+| ⚙️ System | Host Alert Queue Cap | number | 10–200 — how many host-pushed alerts the queue holds, a direct member of the `system-alerts` cluster (same level as the master toggle, not nested). Hidden in compact mode | ✅ |
+| ⚙️ System | Host Alert Max Age | number | 1–168 h — how long a host-pushed alert is kept before it ages out, the sibling of Queue Cap in the `system-alerts` cluster. Hidden in compact mode | ✅ |
+| ⚙️ System | Missing Companions | log | Names every companion plugin that is not **running**, splitting `installed, not running` from `not installed` — a package that is present but silent is a different problem from one that is absent. Read-only: it prints the `dsh plugin --profile <name> add …` command for the ones genuinely missing (and points at the DSH Plugins page on the reserved `desktop` profile, which the CLI refuses). A ✕ hides the rows through the same visibility store the ◉ mode writes, so nothing is unregistered and ticking them again brings them back | ✅ |
+| ⚙️ System | Copy Install Command | action | The copy button beside Missing Companions — writes the install command for the genuinely missing companions to the clipboard ("Copied" feedback for 2 s). Drawn without a label (icon-only) and only shown while there are pending companions that have an install command | ✅ |
+| ⚙️ System | Edit Patch Document | action | "Edit patch document" — opens the patch-document editor (loading state while a previous open is still in flight; rapid re-clicks do not stack a second fetch+remount). Icon-only row | ✅ |
+| ⚙️ System | Content-Safety Review | toggle | The optional LLM-style deep review, "Run content-safety review on save" — OFF by default, stored as a host preference through the same schema field + mapping layer as every other host setting, so it survives reloads. A member of the `patch-document` cluster alongside Edit Patch Document | ✅ |
 
 > **The Layout group only renders in standalone mode.** When a host claims the panel, `close-on-blur` exists solely as the panel-header toggle, so no built-in switch carries `group: 'layout'` and the category is skipped entirely.
 
@@ -72,7 +44,6 @@ Built-in switches are grouped into Appearance / Layout / System (compact two-col
 - 🎨 **Skin System** — Multi-layer discovery + categorized switching (CSS / Managed / Excluded)
 - 🛡️ **Error Boundaries** — All panel components are wrapped so a render error cannot crash the host that mounted the panel
 - 🔌 **Standalone Mode** — Works with no host at all: a ⚡ trigger injected into the configured conversation slot opens a floating popup panel
-- 📝 **Recent Changes** — Auto-records switch operations (30s TTL), displayed in "old value → new value" format
 - 🩺 **Connection Diagnostics** — *(moved to the `dsh-flash-proxy` plugin)* — NO_PROXY policy, connection test, and diagnostics log
 - 🧮 **Reorderable and hideable Panel** — A ⇅ icon in the Workbench and Extensions tab headers opens a reorder mode: ▲▼ move groups and switches, and the result is saved in your DSH profile, so it follows you to another browser or machine. Beside it, a ◉ icon opens a **visibility mode** with a ●/○ box on every row: untick a switch you never use and it disappears from the panel, while staying listed here so you can bring it back. **Both configuration pages list every registered control**, including any a plugin is standing down right now — those rows are dimmed with the reason on hover, so a control that does not apply at the moment can still be ordered or hidden. The two modes are mutually exclusive and each has its own ↺ reset. Switches that declare a `cluster` move as one unit with a fixed internal order and are drawn as one card whose members fold
 
@@ -107,8 +78,6 @@ lib/client.js     BROWSER half — quickControl registry + dynamic panel + skin 
 cordis.patch.yml  bundle layer — inserts host rows into the profile
 ```
 
-> The `cordis.patch.yml` row keeps the entry id `dock-flash` while the package is named `dsh-flash`: the entry id is the settings namespace, so keeping it is what makes the split migration-free.
-
 ## Core contract
 
 `lib/client.js` publishes two services:
@@ -122,15 +91,7 @@ The panel service exposes `host.claim()` / `confirm()` / `release()`: an unconfi
 
 ### What the adapter adds
 
-The dock-base (Workbench) integration lives in the separate `dock-flash` v3 adapter, which interacts through `ctx.workbench`:
-
-| Registration | API | Description |
-| --- | --- | --- |
-| Sidebar Panel | `ctx.workbench.registerPanel()` | Quick control panel (sideBar area) |
-| Plugin Entry | `ctx.workbench.registerPlugin()` | Settings panel card |
-| Activity Bar Item | `ctx.workbench.registerActivityBarItem()` | Lightning icon ⚡, click to open sidebar |
-| Editor View | `ctx.workbench.registerEditorView()` | Quick control panel (draggable to floating window) |
-| Command | `ctx.workbench.registerCommand()` | `dock-flash:openQuickControl` command |
+The dock-base (Workbench) integration is implemented by the separate `dock-flash` v3 adapter package, not by this core. That adapter claims the `dockFlashPanel` service and registers the panel, the plugin card, the activity-bar item, the editor view and the command through `ctx.workbench`. See the `dock-flash` package for its details.
 
 When no host claims the panel, this package runs standalone: it mounts a floating ⚡ trigger button and popup panel directly in the DOM, providing access to all non-layout switches.
 
@@ -357,7 +318,7 @@ Skin selection, panel order, the standalone trigger position, the trigger button
 ## 🌐 Internationalization
 
 The panel is localized in Chinese and English, and it does not decide which of the two to draw. Its
-zh/en tables are handed to DSH's own `@deepseek-ai/dsh-client-locale` registry under the `dock-flash`
+zh/en tables are handed to DSH's own `@deepseek-ai/dsh-client-locale` registry under the `dsh-flash`
 namespace, so the global language setting — the one in DSH's Settings, the one that also drives
 `<html lang>` and is persisted to the Host — is the only authority, and the panel re-renders when that
 service reports a change. Compose no locale plugin and the panel still renders every string, falling
@@ -367,58 +328,6 @@ Third-party switches get this for free through the same lookup: declare a functi
 (`label: () => t('xxx')`) and the row re-renders on a language change. A plain string label does not.
 
 ---
-
-## Installation
-
-Requires a DSH Web environment. The packages are on npm, so the **package name is the whole spec** — no checkout needed:
-
-```sh
-# Standalone: the panel core on its own
-dsh plugin --profile my-profile add dsh-flash
-
-# Workbench: the adapter, which pulls dsh-flash in — plus dock-base
-dsh plugin --profile my-profile add dock-flash dock-base
-
-# Start — or restart, after installing anything new
-dsh --profile my-profile
-```
-
-**Without a host**: this package runs standalone — a ⚡ trigger button is injected into the conversation slot picked by the `trigger-position` switch (default: input right), drawn at the size set by `trigger-size` (default 24px, up to 48px in a slot or 64px at the draggable **Conversation top-right** position). Click it to open the quick control popup panel (Appearance, Layout — trigger position and size — and System switches). The shared `sidebar.footer.action` slot is deliberately not offered, because other plugins occupy it too.
-
-**With the adapter**: `dock-flash@^3` claims the panel through `dockFlashPanel` and integrates it into the workbench — the ⚡ icon appears in the activity bar, and the panel can be opened as a sidebar or floating window with the Appearance and System switches. Dock layout properties (dock edge, auto-hide, reserve space, icon scaling) are configured in dock-base's own settings, not here.
-
-### Companion plugins
-
-This package owns **no monitor at all**. The context, memory and network monitors and the
-system-proxy controls each live in their own package:
-
-```sh
-dsh plugin --profile my-profile add \
-  dsh-flash-ctx-mon dsh-flash-mem-mon dsh-flash-net-mon dsh-flash-proxy
-```
-
-| Package | What it adds |
-|---|---|
-| `dsh-flash-ctx-mon` | **Context monitor** — precise token usage read from DSH session events, with three rising thresholds and the model-window map, plus the session skills chip |
-| `dsh-flash-mem-mon` | **Memory / GC monitor** — RSS, growth rate and Major GC frequency |
-| `dsh-flash-net-mon` | **Network monitor and outbound audit** — a connectivity heartbeat, plus an opt-in fetch tracer with a per-request risk score |
-| `dsh-flash-proxy` | **System proxy control** — proxy mode, `NO_PROXY` policy, `testUrl` and connection diagnostics |
-
-Each registers its own switch through this panel's services and keeps its own settings namespace, so
-they show up as ordinary rows — the three monitors in the **System Alerts** cluster, proxy as its own
-cluster. Install them alongside whichever of the two packages you use; without them the panel simply
-has no such rows.
-
-The **Missing companion plugins** row treats the workbench integration the same way: once `dock-base`
-is installed but the `dock-flash` adapter is absent (the empty-UI failure mode), it names `dock-flash`
-too and appends it to the same install command. Standalone-only users — no `dock-base` — are never
-nagged about it.
-
-**Other ways to install**, if npm is not what you want: a GitHub Release tarball
-(`… add https://github.com/tcgbp/dsh-flash/releases/latest/download/dsh-flash.tgz`), git
-(`… add github:tcgbp/dsh-flash`), or a local checkout (`… add ./dsh-flash` — for development, where
-`lib/client.js` is live on refresh). The DSH **Plugins** page accepts the same package name and adds
-one step: press **Enable now** after installing.
 
 ## Development
 
@@ -441,9 +350,6 @@ This plugin follows the DSH Web style contract: all colors reference `--dsw-alia
 | Dependency | Type | Description |
 | --- | --- | --- |
 | `@deepseek-ai/schemastery` | dependency | Settings schema for the host half |
-| `@deepseek-ai/cordis` >=4.0.0-rc.1 <5.0.0-0 \|\| >=4.0.1-0 <5.0.0-0 | peer | Plugin framework (bundled with DSH) |
-
-> This core package has **no dock-base dependency**. The Workbench integration and its `dock-base` peer live in the separate `dock-flash` adapter.
 
 ## License
 
