@@ -25,11 +25,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://gitee.com/lenin.guo/dsh-flash.git"
+    "url": "git+https://github.com/tcgbp/dsh-flash.git"
   },
-  "homepage": "https://gitee.com/lenin.guo/dsh-flash#readme",
+  "homepage": "https://github.com/tcgbp/dsh-flash#readme",
   "bugs": {
-    "url": "https://gitee.com/lenin.guo/dsh-flash/issues"
+    "url": "https://github.com/tcgbp/dsh-flash/issues"
   },
   "keywords": [
     "dsh",
