@@ -4,6 +4,9 @@
   "description": "Quick Control panel core for DSH Workbench — the floating/docked quick-control panel with the extensible switch registry, the skin system and the alert surfaces. Publishes the `dockFlashPanel` service; the dock-base integration ships separately as `dock-flash`.",
   "license": "Apache-2.0",
   "type": "module",
+  "engines": {
+    "dsh": ">=0.2.2-0 <0.3.0"
+  },
   "main": "./dist/index.js",
   "exports": {
     ".": "./dist/index.js",
@@ -22,11 +25,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tcgbp/dsh-flash.git"
+    "url": "git+https://gitee.com/lenin.guo/dsh-flash.git"
   },
-  "homepage": "https://github.com/tcgbp/dsh-flash#readme",
+  "homepage": "https://gitee.com/lenin.guo/dsh-flash#readme",
   "bugs": {
-    "url": "https://github.com/tcgbp/dsh-flash/issues"
+    "url": "https://gitee.com/lenin.guo/dsh-flash/issues"
   },
   "keywords": [
     "dsh",
