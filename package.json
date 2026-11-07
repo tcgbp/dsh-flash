@@ -37,18 +37,27 @@
     "ui"
   ],
   "dsh": {
+    "kind": "bundle",
     "bundle": {
       "patch": "./cordis.patch.yml"
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-api-session-controller"
       ],
       "platform": "web"
-    }
+    },
+    "capabilities": [
+      "network:ingress",
+      "network:egress",
+      "fs:read",
+      "fs:write"
+    ],
+    "labels": [
+      "remote-access"
+    ]
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
