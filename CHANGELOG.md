@@ -8,6 +8,20 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.4.2
+
+**修复：`viewport.free` 自由位置的「只能竖向拖动 / x 不跟手」死区** (`lib/client.js`，纯客户端，无需重建 `dist/`)。
+
+两个根因叠加，共同造成自由位置在部分状态下水平拖不动、只能竖向移动：
+
+1. **进入自由位置时未重夹陈旧偏移**：若本地存的是旧窗口宽度的绝对坐标（窗口已缩小），或某次拖拽残留了坏偏移，进入 `viewport.free` 后按钮会停在旧的 x 上，水平拖动落入死区。修复：`adoptHostFreeOffset()` 已在采纳宿主偏移后、当 free 是当前活动位置时调用 `clampFreeOffset()` 把偏移重夹进当前窗口（`2123a12`）。
+
+2. **自由位置默认种子在尺寸就绪前解析**：`freeOffset = loadFreeOffset()` 与 `adoptHostFreeOffset()` 的原调用点都在 `triggerSize`/`triggerSizeMax` 及 `TRIGGER_SIZE_*` 常量初始化**之前**（`var` 提升但不赋值）。当宿主无 `triggerFreeOffset` 且 localStorage 种子坏/缺失时，默认分支调 `effectiveTriggerSize()`，此时 `triggerSize` 仍为 `undefined`，于是回落种子变成 `{ x: NaN, y: 8 }`。NaN 的 x 经 `Math.round(NaN)` → `'NaN px'`，CSS 忽略该水平值，正是「水平不跟手、只能竖向拖」。修复：把两处种子解析移到 `triggerSize = loadTriggerSize()` 之后，使默认/采纳路径始终基于已就绪的尺寸算出窗口内有限数字（`1c8117e`）。
+
+`pnpm run check:overlay` 新增 12d 节：以 `{ x: null, y: 285 }` 的坏 seed（宿主与 localStorage 都无有效 `triggerFreeOffset`）验证回落为窗口内有限数字（`x∈[8, innerWidth-size-8]`、`y` 有限）而非 `NaN`/`null`，全部断言 PASS。
+
+用户实测：`freeOffset` 已由 `{ x: null, y: 285 }` 恢复为有效有限数字（如 `{ x: 1434, y: 74 }`），`overlayElRect.x` 与之一致，按钮水平位置正常。
+
 ## 1.4.1
 
 **混杂修复：系统告警总开关恢复标准存储键，伴随监测行立即联动** (`lib/client.js`，纯客户端，
