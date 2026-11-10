@@ -229,12 +229,9 @@ export const Config = Schema.object({
     hostAlertQueueCap: Schema.number().default(DEFAULT_HOST_ALERT_QUEUE_CAP).volatile(),
     hostAlertMaxAge: Schema.number().default(DEFAULT_HOST_ALERT_MAX_AGE).volatile(),
     // ── E · Patch document editor (QuickControl "edit patch document") ─────
-    // Host preference, client-owned: whether saving a patch edit from the panel
-    // additionally runs an LLM deep review (semantic content-safety check) over
-    // the new text. Opaque to the host — it is a boolean gate the client reads
-    // and acts on; a missing/unsupported remote degrades to "no review" and
-    // never blocks a save (see the client's `_requestPatchReview`).
-    patchLlmReview: Schema.boolean().default(false).volatile(),
+    // The editor's save-time validation lives in validatePatchText(); orphan
+    // detection (a `name:` referencing a plugin not installed in this profile)
+    // needs no switch — it is always-on and non-blocking. No host prefs here.
 });
 /**
  * The ctx service DSH publishes with the launch-environment snapshot it
@@ -489,18 +486,20 @@ export function apply(ctx, config) {
         _captureHostLog('info', head);
     }
     /**
-     * The two-layer validation the panel's "edit patch document" flush runs before
-     * a save is allowed: (1) real syntax-level YAML parsing (yaml@^2, same parser
-     * everywhere else), and (2) content-safety checks over the parsed structure.
+     * The validation the panel's "edit patch document" flush runs before a save is
+     * allowed. It begins with real syntax-level YAML parsing (yaml@^2, the same
+     * parser used everywhere else), then runs structural checks over the parsed
+     * document and — when a profile manifest resolves — orphan detection against
+     * the profile's INSTALLED set.
      *
      * The parse layer is BLOCKING — a YAML type error means the document could not
      * be read at all, so a save that produced one is refused (the error is
-     * presented, nothing is written). Everything the structure layer reports as a
+     * presented, nothing is written). Everything the structure checks report as a
      * hard `error` also blocks the save; `warning`s never do — they are "double
-     * check this" markers (an empty result, an unmapped entry), not "this is
-     * broken".
+     * check this" markers (an empty result, an unmapped entry, an orphaned
+     * plugin reference), not "this is broken".
      *
-     * What the structure layer enforces, each once:
+     * What the structural checks enforce, each once:
      *   - The document must parse to a top-level LIST (a patch document is a list
      *     of entries; a bare mapping would never load as one).
      *   - Every list element should be a mapping; anything else is a `warning`
@@ -513,12 +512,21 @@ export function apply(ctx, config) {
      *     "true" silently fails to switch, so it is a hard `error`.
      *   - Unknown fields outside the known patch-entry set are `warning`s, not
      *     errors: a newer loader may add fields this validated set does not know.
+     *   - A patch entry that names a plugin not in the profile's INSTALLED set is
+     *     an orphan: DSH silently skips it at boot, so it is flagged as a
+     *     `warning` (non-blocking) before the save, when the set is resolvable.
      *
      * Returns `{ ok, errors, warnings }`; `ok` is `errors.length === 0`. The raw
      * error text from the parser is preserved verbatim so a malformed document
      * shows the line the user must fix.
      */
-    function validatePatchText(text) {
+    function validatePatchText(text, installed) {
+        // The profile's INSTALLED set (`dependencies` keys) is the authority for
+        // orphan detection: a patch entry that names a plugin which is not on disk
+        // is silently skipped by DSH at boot, so flagging it here before the save
+        // is the one genuinely useful alert this editor can raise. Omitted when no
+        // profile manifest could be resolved (host route passes it only then).
+        const installedSet = installed ? new Set(installed) : null;
         const errors = [];
         const warnings = [];
         let root;
@@ -570,6 +578,16 @@ export function apply(ctx, config) {
             }
             if (map.name !== undefined && typeof map.name !== 'string') {
                 warnings.push(line + ' (' + id + '): `name` should be a string.');
+            }
+            if (installedSet && typeof map.name === 'string' && map.name.trim() !== '') {
+                // An explicit `name:` is a package reference the loader will obey; when
+                // the named package is not installed, DSH silently skips the entry at
+                // boot. Surface it as a non-blocking warning so the edit is saved but
+                // the user can see the config references something this profile lacks.
+                if (!installedSet.has(map.name)) {
+                    warnings.push(line + ' (' + id + '): references plugin "' + map.name +
+                        '" which is not installed in this profile — it will be silently skipped at boot.');
+                }
             }
             for (const key of Object.keys(map)) {
                 if (KNOWN_FIELDS.has(key))
@@ -1401,7 +1419,10 @@ export function apply(ctx, config) {
                     if (!target)
                         return fail('unaddressable', 'target patch document is not among the resolvable ones');
                     const dir = dirname(target);
-                    const validation = validatePatchText(text);
+                    // Resolve the profile's installed set so save-time validation can flag
+                    // orphan references (a `name:` pointing at a plugin not on disk) as warnings.
+                    const profile = await readProfilePackages();
+                    const validation = validatePatchText(text, profile.installed);
                     if (!validation.ok) {
                         // Refused BEFORE any write — the caller's document is the problem,
                         // and nothing on disk changes.
@@ -1426,13 +1447,14 @@ export function apply(ctx, config) {
             },
         }), 'dsh-flash: GET+POST /plugins/dsh-flash/patch-document');
         // F3 · Patch DOCUMENT "validate preview". The panel checks each item of a
-        // patch one-by-one on save (when the `patchLlmReview` switch is on) and
-        // shows pass/fail per item BEFORE anything is written. Structural checks —
-        // top-level must be an array, duplicate ids are hard errors, unknown fields
-        // are warnings, `disabled` must be a boolean — live in validatePatchText()
-        // on the HOST, so a browser plugin cannot run them itself. This route just
-        // runs that pure, side-effect-free function over the supplied text and
-        // returns the per-item `errors` / `warnings` arrays; it never writes.
+        // patch one-by-one on save and shows pass/fail per item BEFORE anything is
+        // written. Structural checks — top-level must be an array, duplicate ids
+        // are hard errors, unknown fields are warnings, `disabled` must be a
+        // boolean — plus orphan detection (a `name:` for a plugin not installed in
+        // this profile) live in validatePatchText() on the HOST, so a browser
+        // plugin cannot run them itself. This route just runs that pure,
+        // side-effect-free function over the supplied text and returns the
+        // per-item `errors` / `warnings` arrays; it never writes.
         wsCtx.effect(() => wsCtx.webServer.register({
             kind: 'exact',
             path: '/plugins/dsh-flash/validate-patch',
@@ -1445,7 +1467,11 @@ export function apply(ctx, config) {
                 }
                 const body = await readJsonBody(req, 256 * 1024);
                 const text = body && typeof body.text === 'string' ? body.text : '';
-                const validation = validatePatchText(text);
+                // Same orphan-aware validation as the save route: pass the profile's
+                // installed set so `name:` references to missing plugins surface as
+                // warnings in the pre-save checklist too.
+                const profile = await readProfilePackages();
+                const validation = validatePatchText(text, profile.installed);
                 sendJson(res, 200, { ok: true, validation });
             },
         }), 'dsh-flash: POST /plugins/dsh-flash/validate-patch');
