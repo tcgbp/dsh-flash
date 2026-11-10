@@ -8,6 +8,25 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.4.1
+
+**混杂修复：系统告警总开关恢复标准存储键，伴随监测行立即联动** (`lib/client.js`，纯客户端，
+无需重建 `dist/`)。
+
+1.4.0 的 token 迁移重构把主控「系统告警」开关的 localStorage 键从 `dock-flash:system-alerts`
+单方面改成了 `dsh-flash:system-alerts`，但三个伴随监测插件（`dsh-flash-ctx-mon` /
+`dsh-flash-mem-mon` / `dsh-flash-net-mon`）仍读取规范键 `dock-flash:system-alerts` 以把它自己的
+开关行的 `visible()` 门控在总开关状态上。结果是本仓库写的是 `dsh-flash:system-alerts`，伴随
+组件读的是从未被写入的 `dock-flash:system-alerts`，于是关闭「系统告警」后，「性能告警」、
+上下文与网络告警行永远不消失——`_getAlertsOn()` 一直返回 `true`。
+
+修复：将 `_alertToggleKey` 恢复为共享的 `dock-flash:system-alerts` 键（与开关 id、AGENTS.md
+及所有伴随消费者的读音一致），无需改动任何伴随插件——关掉总开关后三行监测随之消失。
+
+一处可接受的边界：曾经在 1.4.0 阶段以 `dsh-flash:system-alerts='0'` 关闭过告警的用户，升级后
+「系统告警」会回到打开状态（下次关闭重新写入规范键即持久）。开关 id 未变（`dock-flash:*` →
+工作台页），本地隐藏/顺序等其它偏好不受影响。
+
 ## 1.4.0
 
 **The `主机端日志` switch becomes a host-wide logger viewer** (`lib/client.js` + `src/index.ts`).
