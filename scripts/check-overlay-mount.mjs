@@ -1216,6 +1216,115 @@ console.log('\n=== 11b. what the local->host migration is allowed to overwrite =
     !validOnChosen.some((p) => p && p.triggerLayer === 2000), 'writes: ' + JSON.stringify(validOnChosen))
 }
 
+// The free-floating position stores its offset as window-absolute {x, y}, a model
+// in which the fixing bug was a stale SEED, not moved arithmetic (the drag maps
+// the pointer 1:1 onto the stored pair, so vertical-only movement is the shape of
+// a seed captured on a wider window pinning the button at the right edge, leaving
+// only a dead leftward band — "switch to free, can only move vertically, until
+// reset position"). The drawn position is display-clamped either way, so the fix
+// re-clamps the STORED seed on free entry (applyTrigger) and again on the async
+// host adoption (adoptHostFreeOffset — a stale host reply arriving after the
+// entry clamp would otherwise reopen the dead band).
+console.log('\n=== 12c. a stale free-position seed is re-clamped into the window on free entry ===')
+{
+  const storeF = new Map()
+  // Seed a clearly-out-of-window offset (x far past the 1400-wide harness window),
+  // position free. This is the state after a resize while the offset sat valid on
+  // a WIDER window — exactly the "vertical-only until reset" report.
+  storeF.set('dsh-flash:trigger-position', 'viewport.free')
+  storeF.set('dsh-flash:free-offset', JSON.stringify({ x: 3000, y: 30 }))
+
+  const bodyF = new El('body')
+  const documentStubF = Object.assign({}, documentStub, {
+    body: bodyF,
+    querySelectorAll: (s) => [...bodyF.querySelectorAll(s), ...head.querySelectorAll(s)],
+    getElementById: (id) => bodyF.descendants().find((e) => e.id === id) || null,
+    // Inherit the base document's real addEventListener/removeEventListener so
+    // the drag gesture's document-global listeners actually register and the
+    // free branch (no conversation viewport) can reach them.
+    __fire(type, ev) {
+      for (const fn of [...(documentListeners.get(type) || [])]) {
+        fn(ev || { type, preventDefault() {}, stopPropagation() {} })
+      }
+    },
+  })
+  bodyF.isConnected = true
+
+  const sandboxF = Object.assign({}, sandbox, {
+    document: documentStubF,
+    localStorage: {
+      getItem: (k) => (storeF.has(k) ? storeF.get(k) : null),
+      setItem: (k, v) => storeF.set(k, String(v)),
+      removeItem: (k) => storeF.delete(k),
+      clear: () => storeF.clear(),
+      get length() { return storeF.size },
+    },
+  })
+  sandboxF.window = sandboxF
+  sandboxF.globalThis = sandboxF
+  let defF = null
+  sandboxF.window.__ModuleLoader__ = { load: (d) => { defF = d } }
+  vm.runInNewContext(code, sandboxF, { filename: 'lib/client.js#free' })
+  const pluginF = defF.factory(requireStub)
+
+  const providedF = {}
+  const ctxF = {
+    get: (name) => (name === 'remote' ? undefined : providedF[name]),
+    provide: (name, value) => { providedF[name] = value },
+    on: () => () => {},
+    effect: (fn) => { const d = fn(); return typeof d === 'function' ? d : () => {} },
+    inject: () => () => {},
+    // The host echoes the SAME stale seed, answering LATE — i.e. its reply lands
+    // after the entry clamp already ran. Without the re-clamp in
+    // adoptHostFreeOffset() this read-back silently re-opens the dead band.
+    remote: {
+      settings: {
+        describe: () => Promise.resolve({
+          ok: true,
+          value: {
+            namespaces: [{
+              ns: 'dsh-flash',
+              revision: 9,
+              value: { panelOrder: {}, activeSkin: '', triggerPosition: 'viewport.free', triggerFreeOffset: { x: 3000, y: 30 } },
+            }],
+          },
+        }),
+        update: () => Promise.resolve({ ok: true, value: { revision: 10 } }),
+      },
+    },
+    logger: { info() {}, warn() {}, error() {} },
+  }
+  pluginF.apply(ctxF)
+  await new Promise((r) => setTimeout(r, 20))
+
+  const pF = sandboxF.window.__dockFlashOverlay()
+  const sizeF = pF.triggerSize
+  const maxX = Math.max(8, sandboxF.innerWidth - sizeF - 8)
+  check('the stale 3000px-right free seed is re-clamped INTO the window on entry',
+    !!pF.freeOffset && pF.freeOffset.x === maxX,
+    pF.freeOffset && `resolved x=${pF.freeOffset.x} (max=${maxX})`)
+  check('...and its vertical value is untouched by that clamp',
+    !!pF.freeOffset && pF.freeOffset.y === 30, pF.freeOffset && `resolved y=${pF.freeOffset.y}`)
+
+  const btnF = sandboxF.document.getElementById('dsh-flash-overlay-trigger')
+  if (!btnF) {
+    check('free trigger mounted for the drag assertion', false, 'no button')
+  } else {
+    // With the seed now in-window, a large LEFT drag must move the button
+    // horizontally again — the reported behaviour was stuck vertical-only.
+    // The button is 24px and drawn at left = maxX = 1368 (spanning 1368..1392),
+    // so grab it at x=1380 and drag far left.
+    btnF.dispatch('mousedown', mouse(1380, 60))
+    sandboxF.document.__fire('mousemove', mouse(400, 60))  // dx = -980
+    sandboxF.document.__fire('mouseup', mouse(400, 60))
+    btnF.dispatch('click', mouse(400, 60))
+    const moved = sandboxF.window.__dockFlashOverlay().freeOffset
+    check('a left drag now moves the seed horizontally (x dragged from the edge back left)',
+      !!moved && moved.x === maxX - 980 && moved.y === 30,
+      moved && `resolved x=${moved.x} y=${moved.y}`)
+  }
+}
+
 // The OTHER ordering: a host that answers AFTER the mount. Both occur in the
 // wild — `apply()` starts the describe() round trip at the top and installs the
 // standalone trigger at the bottom, so a slow host answers late and a fast one
