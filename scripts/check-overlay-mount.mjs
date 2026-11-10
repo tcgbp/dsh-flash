@@ -1325,6 +1325,84 @@ console.log('\n=== 12c. a stale free-position seed is re-clamped into the window
   }
 }
 
+// Field probe showed `freeOffset: {x:null, y:285}` on a real page. The x member
+// was null while y was a real number — an object, so a guard that only checks
+// `typeof hostOffset === 'object'` would ADOPT it verbatim and re-open the
+// vertical-only dead band. Both resolve-side (loadFreeOffset) and adopt-side
+// (adoptHostFreeOffset) must refuse any member that is not a finite number, and
+// fall back to the window top-right default. This section pins that: with a bad
+// seed in BOTH localStorage and the host describe reply, the live offset must be
+// a finite number inside the window — never `null`.
+console.log('\n=== 12d. a FREE-OFFSET SEED whose x member is null is refused, not adopted ===')
+{
+  const storeD = new Map()
+  storeD.set('dsh-flash:trigger-position', 'viewport.free')
+  // The exact shape seen in the field probe: x null, y a real number.
+  storeD.set('dsh-flash:free-offset', JSON.stringify({ x: null, y: 285 }))
+
+  const bodyD = new El('body')
+  const documentStubD = Object.assign({}, documentStub, {
+    body: bodyD,
+    querySelectorAll: (s) => [...bodyD.querySelectorAll(s), ...head.querySelectorAll(s)],
+    getElementById: (id) => bodyD.descendants().find((e) => e.id === id) || null,
+    __fire(type, ev) {
+      for (const fn of [...(documentListeners.get(type) || [])]) fn(ev || { type, preventDefault() {}, stopPropagation() {} })
+    },
+  })
+  bodyD.isConnected = true
+
+  const sandboxD = Object.assign({}, sandbox, {
+    document: documentStubD,
+    localStorage: {
+      getItem: (k) => (storeD.has(k) ? storeD.get(k) : null),
+      setItem: (k, v) => storeD.set(k, String(v)),
+      removeItem: (k) => storeD.delete(k),
+      clear: () => storeD.clear(),
+      get length() { return storeD.size },
+    },
+  })
+  sandboxD.window = sandboxD
+  sandboxD.globalThis = sandboxD
+  let defD = null
+  sandboxD.window.__ModuleLoader__ = { load: (d) => { defD = d } }
+  vm.runInNewContext(code, sandboxD, { filename: 'lib/client.js#badseed' })
+  const pluginD = defD.factory(requireStub)
+
+  const providedD = {}
+  const ctxD = {
+    get: (name) => (name === 'remote' ? undefined : providedD[name]),
+    provide: (name, value) => { providedD[name] = value },
+    on: () => () => {},
+    effect: (fn) => { const d = fn(); return typeof d === 'function' ? d : () => {} },
+    inject: () => () => {},
+    remote: {
+      settings: {
+        // Host answers with the SAME malformed object — the leak path a guard
+        // that only checks "is it an object" would let straight through.
+        describe: () => Promise.resolve({
+          ok: true,
+          value: { namespaces: [{ ns: 'dsh-flash', revision: 40, value: { triggerPosition: 'viewport.free', triggerFreeOffset: { x: null, y: 285 } } }] },
+        }),
+        update: () => Promise.resolve({ ok: true, value: { revision: 41 } }),
+      },
+    },
+    logger: { info() {}, warn() {}, error() {} },
+  }
+  pluginD.apply(ctxD)
+  await new Promise((r) => setTimeout(r, 20))
+
+  const pD = sandboxD.window.__dockFlashOverlay()
+  const sizeD = pD.triggerSize
+  const maxXD = Math.max(8, sandboxD.innerWidth - sizeD - 8)
+  check('a null-x free seed is refused and falls back to an in-window number',
+    !!pD.freeOffset && typeof pD.freeOffset.x === 'number' && isFinite(pD.freeOffset.x)
+      && pD.freeOffset.x >= 8 && pD.freeOffset.x <= maxXD,
+    pD.freeOffset && `resolved x=${pD.freeOffset.x} (typeof=${typeof pD.freeOffset.x}, max=${maxXD})`)
+  check('...and the vertical member is likewise a finite number',
+    !!pD.freeOffset && typeof pD.freeOffset.y === 'number' && isFinite(pD.freeOffset.y),
+    pD.freeOffset && `resolved y=${pD.freeOffset.y} (typeof=${typeof pD.freeOffset.y})`)
+}
+
 // The OTHER ordering: a host that answers AFTER the mount. Both occur in the
 // wild — `apply()` starts the describe() round trip at the top and installs the
 // standalone trigger at the bottom, so a slow host answers late and a fast one
