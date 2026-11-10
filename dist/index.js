@@ -307,6 +307,18 @@ export function apply(ctx, config) {
      * namespace, now `dsh-flash`).
      */
     const PLUGIN_NAMES = ['dsh-flash', 'dock-flash'];
+    /**
+     * DSH's own kernel namespace. Every core/engine runtime plugin ships under
+     * `@deepseek-ai/dsh-*` and is provided BY THE ENGINE — the packages live under
+     * the engine's npx-cache node_modules, not the profile's — so the profile's
+     * `package.json` `dependencies` never lists them and `readProfilePackages()`
+     * cannot see them. They load and run normally regardless. A patch row that
+     * references one must NOT be treated as an orphan: the orphan check exists to
+     * catch genuinely MISSING third-party packages, and these are never missing.
+     * (A bogus official reference is extremely rare and, being engine-provided,
+     * falls back to the same silent-skip-at-boot the warning describes anyway.)
+     */
+    const ENGINE_NAMESPACE = '@deepseek-ai/dsh-';
     // ── Host-side log buffer ─────────────────────────────────────────────
     // There is no host-side log surface on DSH Desktop: the host process's
     // console is not visible in the GUI, so this plugin's host half may do work
@@ -584,7 +596,17 @@ export function apply(ctx, config) {
                 // the named package is not installed, DSH silently skips the entry at
                 // boot. Surface it as a non-blocking warning so the edit is saved but
                 // the user can see the config references something this profile lacks.
-                if (!installedSet.has(map.name)) {
+                //
+                // Exception: the official kernel namespace `@deepseek-ai/dsh-*` is
+                // ENGINE-provided and lives outside the profile's manifest, so
+                // `installedSet` (built from the profile's `dependencies`) can never
+                // contain it. Exempting it here is what keeps healthy core/engine
+                // plugins — and the engine-inherited config that legitimately patches
+                // them — from being misreported as orphans. Every non-official name
+                // still hits the strict check below, so a genuinely missing
+                // third-party package is still flagged.
+                const isEngineName = map.name.startsWith(ENGINE_NAMESPACE);
+                if (!isEngineName && !installedSet.has(map.name)) {
                     warnings.push(line + ' (' + id + '): references plugin "' + map.name +
                         '" which is not installed in this profile — it will be silently skipped at boot.');
                 }
