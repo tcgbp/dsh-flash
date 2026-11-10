@@ -498,6 +498,63 @@ export function apply(ctx, config) {
         _captureHostLog('info', head);
     }
     /**
+     * Depth ceiling for the config structural scan. The editor is built around
+     * shallow rows; a map nested deeper than this is flagged rather than silently
+     * rewritten by the deep-merge that re-serialises the patch, which would
+     * flatten a shape the panel never advertises. 16 matches util.inspect's own
+     * default, so nothing the console would already show is hidden from this
+     * check.
+     */
+    const CONFIG_MAX_DEPTH = 16;
+    /**
+     * Recursively scan a patch entry's `config` value for shapes the editor
+     * cannot edit honestly or that a YAML round-trip would corrupt. Pushes
+     * non-blocking `warning`s only — the config is preserved as-is, never
+     * repaired. `path` is the `.a.b[3]` breadcrumb into the value, `active` the
+     * set of objects on the current descent path (a repeat is a cycle), and
+     * `entryLine` the pre-formatted entry label that prefixes every warning.
+     */
+    function scanConfigValue(value, path, depth, warnings, active, entryLine) {
+        const isObject = typeof value === 'object' && value !== null;
+        if (value === undefined || value === null) {
+            // A present-but-undefined slot cannot round-trip; null is a legal "clear".
+            if (value === undefined) {
+                warnings.push(entryLine + ': `config' + path + '` is undefined and cannot be stored.');
+            }
+            return;
+        }
+        if (isObject) {
+            // Cycle guard: the same object reappearing on the current descent means
+            // the document cannot be serialised at all.
+            if (active.has(value)) {
+                warnings.push(entryLine + ': `config' + path + '` is self-referential (a cycle).');
+                return;
+            }
+            active.add(value);
+        }
+        else if (typeof value === 'function') {
+            warnings.push(entryLine + ': `config' + path + '` is a function, not a storable value.');
+            return;
+        }
+        else if (typeof value === 'number' && !Number.isFinite(value)) {
+            warnings.push(entryLine + ': `config' + path + '` is ' + String(value) + ', which YAML cannot store losslessly.');
+            return;
+        }
+        if (depth >= CONFIG_MAX_DEPTH) {
+            warnings.push(entryLine + ': `config' + path + '` nests deeper than ' + CONFIG_MAX_DEPTH + ' levels.');
+        }
+        else if (Array.isArray(value)) {
+            value.forEach((el, idx) => scanConfigValue(el, path + '[' + idx + ']', depth + 1, warnings, active, entryLine));
+        }
+        else if (isObject) {
+            for (const k of Object.keys(value)) {
+                scanConfigValue(value[k], path + '.' + k, depth + 1, warnings, active, entryLine);
+            }
+        }
+        if (isObject)
+            active.delete(value);
+    }
+    /**
      * The validation the panel's "edit patch document" flush runs before a save is
      * allowed. It begins with real syntax-level YAML parsing (yaml@^2, the same
      * parser used everywhere else), then runs structural checks over the parsed
@@ -610,6 +667,20 @@ export function apply(ctx, config) {
                     warnings.push(line + ' (' + id + '): references plugin "' + map.name +
                         '" which is not installed in this profile — it will be silently skipped at boot.');
                 }
+            }
+            if (map.config !== undefined && map.config !== null) {
+                // Config must be a MAPPING for the editor to edit it row-by-row and for
+                // the deep-merge that re-serialises it to preserve program config. A
+                // scalar or array is flagged, never silently rewritten into one.
+                const cfg = map.config;
+                if (typeof cfg !== 'object' || Array.isArray(cfg)) {
+                    warnings.push(line + ' (' + id + '): `config` should be a mapping (object) to edit safely.');
+                }
+                // Recursively find shapes that cannot round-trip through YAML — NaN /
+                // ±Infinity, a cycle, or a structure nested past the editor's depth
+                // ceiling — each as a non-blocking warning. The value itself is left
+                // untouched.
+                scanConfigValue(cfg, '', 0, warnings, new Set(), line + ' (' + id + ')');
             }
             for (const key of Object.keys(map)) {
                 if (KNOWN_FIELDS.has(key))
