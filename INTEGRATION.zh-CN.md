@@ -3,7 +3,7 @@
 > 如何从你的 DSH 插件注册快捷控制开关，**无需对 dsh-flash 强依赖**。
 
 ---
-> **自核心/适配器拆分以来：** 下文描述的包是 `dsh-flash`。它拥有 `quickControl` 注册表，而 `dock-flash` 现在是挂载面板的 dock-base 适配器——安装 `dock-flash` 会一并拉入 `dsh-flash`。服务名、`dock-flash:ready` 事件和 `dock-flash:*` 开关 id 都刻意保留旧名，因此已经针对它们发布的一切都无需改动。唯一改变的是 `dsh.client.inject` 条目：客户端模块图的行 id 就是它的包名，所以必须写成 `"dsh-flash"`。
+> **自核心/适配器拆分以来：** 下文描述的包是 `dsh-flash`。它拥有 `quickControl` 注册表，而 `dock-flash` 现在是挂载面板的 dock-base 适配器——安装 `dock-flash` 会一并拉入 `dsh-flash`。核心通过 `dshFlashPanel` 服务发布其面板并触发 `dsh-flash:ready` 事件。消费方必须读取这些新名称，而不是旧的 `dockFlashPanel` / `dock-flash:ready`——使用过时的名称会使它的开关注册**静默失败**。`dock-flash:*` 开关 id 前缀不变（它标识注册该开关的插件），而确实会改变的是 `dsh.client.inject` 条目：客户端模块图的行 id 就是它的包名，所以必须写成 `"dsh-flash"`。
 
 ## 概述
 
@@ -33,7 +33,7 @@ exports.inject = []
 
 你的插件通过两种机制在运行时发现 dsh-flash：
 
-1. **被动方式**：监听 `dock-flash:ready` 事件
+1. **被动方式**：监听 `dsh-flash:ready` 事件
 2. **主动方式**：调用 `ctx.get('quickControl')` 立即检查
 
 ---
@@ -65,8 +65,8 @@ exports.apply = function (ctx) {
     }, 'my-plugin: cleanup')
   }
 
-  // 1. 被动：监听 dock-flash:ready 事件（覆盖我们先加载的情况）
-  var off = ctx.on('dock-flash:ready', registerMySwitches)
+  // 1. 被动：监听 dsh-flash:ready 事件（覆盖我们先加载的情况）
+  var off = ctx.on('dsh-flash:ready', registerMySwitches)
 
   // 2. 主动：检查 dsh-flash 是否已经加载（覆盖它先加载的情况）
   var registry = ctx.get('quickControl')
@@ -218,7 +218,7 @@ label: () => t('notifications')
 一次，并保存它返回的 disposer；`setLocale()` 会**拒绝**它从未见过的 id，所以可用语言要读
 `getSnapshot().locales`，不要假设就是 `zh` 和 `en`。
 
-如果不想依赖 locale 包，面板把自己的代理挂在 `dockFlashPanel` 服务的 `i18n: { t, L }` 上，
+如果不想依赖 locale 包，面板把自己的代理挂在 `dshFlashPanel` 服务的 `i18n: { t, L }` 上，
 另有 `t.getLocale()` 和 `t.onLocaleChange(fn)`——和面板自己用的是同一套文案。有自有字典时优先用服务。
 
 ```js
@@ -344,7 +344,7 @@ window.__ModuleLoader__.load({
       }
 
       // 双重发现：被动（事件）+ 主动（ctx.get）
-      var off = ctx.on('dock-flash:ready', registerSwitches)
+      var off = ctx.on('dsh-flash:ready', registerSwitches)
       var registry = ctx.get('quickControl')
       if (registry) registerSwitches(registry)
 
@@ -375,7 +375,7 @@ window.__ModuleLoader__.load({
 
 | 事件 | 载荷 | 触发时机 |
 |---|---|---|
-| `dock-flash:ready` | `QuickControlRegistry` | dsh-flash 创建并发布 `quickControl` 服务后触发一次 |
+| `dsh-flash:ready` | `QuickControlRegistry` | dsh-flash 创建并发布 `quickControl` 服务后触发一次 |
 
 ---
 

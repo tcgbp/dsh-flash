@@ -3,7 +3,7 @@
 > How to register quick-control switches from your DSH plugin **without a hard dependency** on dsh-flash.
 
 ---
-> **Since the core/adapter split:** the package described below is `dsh-flash`. It owns the `quickControl` registry, and `dock-flash` is now the dock-base adapter that mounts the panel — installing `dock-flash` pulls `dsh-flash` in. The service name, the `dock-flash:ready` event and the `dock-flash:*` switch ids deliberately keep their old names so nothing already shipping against them has to change. The one thing that DOES change is the `dsh.client.inject` entry: a client module graph row's id IS its package name, so it must read `"dsh-flash"`.
+> **Since the core/adapter split:** the package described below is `dsh-flash`. It owns the `quickControl` registry, and `dock-flash` is now the dock-base adapter that mounts the panel — installing `dock-flash` pulls `dsh-flash` in. The core publishes its panel through the `dshFlashPanel` service and emits the `dsh-flash:ready` event. A consumer must read those names, not the older `dockFlashPanel` / `dock-flash:ready` — a stale name makes its switch registration fail SILENTLY. The `dock-flash:*` switch id prefix is unchanged (it denotes the registering plugin), and the one thing that definitely DOES change is the `dsh.client.inject` entry: a client module graph row's id IS its package name, so it must read `"dsh-flash"`.
 
 ## Overview
 
@@ -33,7 +33,7 @@ exports.inject = []
 
 Your plugin discovers dsh-flash at runtime via two mechanisms:
 
-1. **Passive**: Listen for the `dock-flash:ready` event
+1. **Passive**: Listen for the `dsh-flash:ready` event
 2. **Active**: Call `ctx.get('quickControl')` to check immediately
 
 ---
@@ -65,8 +65,8 @@ exports.apply = function (ctx) {
     }, 'my-plugin: cleanup')
   }
 
-  // 1. Passive: listen for dock-flash:ready (covers case where we load first)
-  const off = ctx.on('dock-flash:ready', registerMySwitches)
+  // 1. Passive: listen for dsh-flash:ready (covers case where we load first)
+  const off = ctx.on('dsh-flash:ready', registerMySwitches)
 
   // 2. Active: check if dsh-flash already loaded (covers case where it loaded before us)
   const registry = ctx.get('quickControl')
@@ -220,7 +220,7 @@ already registered under your namespace, so register once and keep the disposer 
 `getSnapshot().locales` rather than assuming `zh` and `en`.
 
 If you would rather not depend on the locale package, the panel's own proxy is published on the
-`dockFlashPanel` service as `i18n: { t, L }`, with `t.getLocale()` and `t.onLocaleChange(fn)` — the
+`dshFlashPanel` service as `i18n: { t, L }`, with `t.getLocale()` and `t.onLocaleChange(fn)` — the
 same strings the panel itself draws. Prefer the service when you have your own dictionaries.
 
 ```js
@@ -347,7 +347,7 @@ window.__ModuleLoader__.load({
       }
 
       // Dual-discovery: passive (event) + active (ctx.get)
-      var off = ctx.on('dock-flash:ready', registerSwitches)
+      var off = ctx.on('dsh-flash:ready', registerSwitches)
       var registry = ctx.get('quickControl')
       if (registry) registerSwitches(registry)
 
@@ -378,7 +378,7 @@ Corresponding `package.json`:
 
 | Event | Payload | When |
 |---|---|---|
-| `dock-flash:ready` | `QuickControlRegistry` | Fired once after dsh-flash creates and publishes the `quickControl` service |
+| `dsh-flash:ready` | `QuickControlRegistry` | Fired once after dsh-flash creates and publishes the `quickControl` service |
 
 ---
 

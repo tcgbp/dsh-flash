@@ -110,7 +110,7 @@ and the API route that still works while `github.com` is unreachable — is in
 
 The core has one hosting story: it always publishes a service and offers its own standalone ⚡.
 
-**The `dockFlashPanel` service** — `ctx.provide('dockFlashPanel', …)` exposes the core's panel and its host-control handshake:
+**The `dshFlashPanel` service** — `ctx.provide('dshFlashPanel', …)` exposes the core's panel and its host-control handshake:
 
 | Field | Value |
 |---|---|
@@ -131,7 +131,7 @@ The core **never** looks for `workbench` or dock-base. It always mounts its ⚡,
 - `host.claim()` unmounts the standalone ⚡ and returns a lease; `lease.confirm()` says the host finished registering what it claimed; `host.release()` (or `lease.release()`, or the plugin's `ctx.on('dispose')`) brings the ⚡ back. `releaseOne()` drops one holder without releasing the others; `isClaimed()` reports whether a live claim exists.
 - **A claim that is not `confirm()`ed within `CLAIM_WATCHDOG_MS` (2000 ms) is rolled back**: the core warns and re-mounts its ⚡, so a host that claims and then throws cannot leave the user with no panel at all. A lease is bound to the claimer's fiber and released on dispose, so an adapter that forgets `release()` cannot leak the claim.
 - **The dock-base workbench registrations — sidebar panel, activity bar item, editor view, command, settings card — live in the separate `dock-flash` adapter package.** This core registers none of them; it supplies `Panel`, `Header`, `ErrorBoundary` and `icon` and nothing else about the dock.
-- **`apply()` is idempotent.** Two patch layers may both insert this plugin's row (`insert` does not dedupe by id), so a second `apply()` returns immediately when `ctx.get('dockFlashPanel')` already exists. The guard is the SERVICE, never a module-level flag, so disable→enable still works.
+- **`apply()` is idempotent.** Two patch layers may both insert this plugin's row (`insert` does not dedupe by id), so a second `apply()` returns immediately when `ctx.get('dshFlashPanel')` already exists. The guard is the SERVICE, never a module-level flag, so disable→enable still works.
 
 **`sidebar.footer.action` is deliberately not offered as a trigger position.** It is a shared slot that CordisPanel and other plugins also occupy, and a second occupant produces visual conflicts with them. Do not re-add it to `TRIGGER_POSITIONS`, and keep the fallback in `loadTriggerPosition()` pointing at a conversation slot. Note the trade-off: every slot-based position lives inside the conversation UI, so with no session open the trigger is not rendered at all — that is accepted.
 
@@ -244,7 +244,7 @@ ignored. (The `external` path *does* strip it first; `inject` does not.)
 > monitor. `dsh-flash-ctx-mon` carries the context monitor (`SessionEventTokenSource`,
 > `createSessionContextProvider`, the context thresholds and the model-window map),
 > `dsh-flash-mem-mon` the memory/GC monitor, `dsh-flash-net-mon` the network audit. Each holds
-> its own `settings` namespace, registers its provider through `ctx.get('dockFlashAlerts')` and
+> its own `settings` namespace, registers its provider through `ctx.get('dshFlashAlerts')` and
 > its switch through `ctx.get('quickControl')`. dsh-flash keeps only the shared registries, the
 > host-pushed queue provider, and the companion integration lists (`_COMPANION_PREFIXES`,
 > `_PROVIDER_SWITCH_MAP`, `_PROVIDER_LABELS`, the cluster-expand and alerts-dependent id lists) —
