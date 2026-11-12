@@ -95,7 +95,7 @@ Seven invariants:
   disabled-plugin records live under `ext:*` alone, so the warning belongs to the Extensions tab and
   would be a false claim on Workbench.
 
-`__dockFlashPanelOrder()` prints the order the last render resolved next to what is persisted.
+`dshFlashPanelOrder()` prints the order the last render resolved next to what is persisted.
 
 > The reasoning, the two-bucket-split trade-off and the fold's history:
 > [architecture-notes.md](architecture-notes.md).

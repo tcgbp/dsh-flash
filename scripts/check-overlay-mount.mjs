@@ -744,8 +744,8 @@ check('overlay button is hidden while there is no conversation', !!(btn && btn.s
   btn && btn.style.display)
 
 // ── the probe agrees ────────────────────────────────────────────────────────
-console.log('\n=== 2. __dockFlashOverlay() before a conversation exists ===')
-const probe1 = sandbox.window.__dockFlashOverlay()
+console.log('\n=== 2. dshFlashOverlay() before a conversation exists ===')
+const probe1 = sandbox.window.dshFlashOverlay()
 console.log('  ' + JSON.stringify(probe1, null, 2).split('\n').join('\n  '))
 check('probe reports the build version first', probe1.clientVersion === BUNDLE_VERSION, probe1.clientVersion)
 check('probe: mounted but no anchor yet', probe1.overlayElMounted === true && probe1.anchorFound === false)
@@ -794,8 +794,8 @@ for (let i = 0; i < 3; i++) {
 body.appendChild(rail)
 sandbox.__fireResize()
 
-const rp = typeof sandbox.window.__dockFlashTurnRail === 'function' ? sandbox.window.__dockFlashTurnRail() : null
-check('the __dockFlashTurnRail() hook is registered', !!rp)
+const rp = typeof sandbox.window.dshFlashTurnRail === 'function' ? sandbox.window.dshFlashTurnRail() : null
+check('the dshFlashTurnRail() hook is registered', !!rp)
 check('rail probe finds the scroller despite the joined fade class',
   !!(rp && rp.rails && rp.rails[0] && rp.rails[0].scroller === true),
   rp && rp.rails && rp.rails[0] ? 'scroller=' + rp.rails[0].scroller + ' marks=' + rp.rails[0].marks + ' cls=' + rp.rails[0].cls : 'no probe')
@@ -805,7 +805,7 @@ check('rail probe reports the rail as visible (this is what hides the switch)',
 check('button gives way to the right-hand rail (left 1168)', btn && btn.style.left === '1168px', btn && btn.style.left)
 
 console.log('\n=== 5. probe after everything resolves ===')
-const probe2 = sandbox.window.__dockFlashOverlay()
+const probe2 = sandbox.window.dshFlashOverlay()
 console.log('  ' + JSON.stringify(probe2, null, 2).split('\n').join('\n  '))
 check('probe verdict is ok', /^ok/.test(probe2.verdict), probe2.verdict)
 check('probe reports the anchor adopted', probe2.anchorAdopted === true && probe2.anchorWatcher === 'adopted',
@@ -886,7 +886,7 @@ btn.dispatch('click', mouse(1250, 100))                  // the click a drag end
 check('the click ending a drag was swallowed', !!(panel && panel.style.display === 'none'),
   panel ? panel.style.display : 'no panel element')
 // pointer moved +14/+16 from dx 8 -> max(0, 8-14) = 0, dy 8 -> 8+16 = 24
-const probe3 = sandbox.window.__dockFlashOverlay()
+const probe3 = sandbox.window.dshFlashOverlay()
 check('the drag moved the offset instead (dx 0, dy 24)',
   probe3.offset.dx === 0 && probe3.offset.dy === 24, JSON.stringify(probe3.offset))
 
@@ -897,13 +897,13 @@ check('the toggle recovered after the drag', !!(panel && panel.style.display ===
   panel ? panel.style.display : 'no panel element')
 
 // ── the panel's own inventory ───────────────────────────────────────────────
-// `__dockFlashPanelOrder()` is assigned DURING the render, so it only exists once
+// `dshFlashPanelOrder()` is assigned DURING the render, so it only exists once
 // the panel has drawn — which is what makes it the right place to assert a
 // rendering rule from outside React.
 console.log('\n=== 9. every control is listed in the ordering and visibility pages ===')
-const order = typeof sandbox.window.__dockFlashPanelOrder === 'function'
-  ? sandbox.window.__dockFlashPanelOrder() : null
-check('__dockFlashPanelOrder() exists (the panel rendered)', !!order)
+const order = typeof sandbox.window.dshFlashPanelOrder === 'function'
+  ? sandbox.window.dshFlashPanelOrder() : null
+check('dshFlashPanelOrder() exists (the panel rendered)', !!order)
 const flat = (obj) => Object.values(obj || {}).flat()
 check('the stood-down control IS in the inventory both editing modes draw',
   !!order && flat(order.switches).includes(STOOD_DOWN_ID), order ? JSON.stringify(order.switches) : 'no hook')
@@ -994,9 +994,9 @@ check('the draggable position allows 64px', btn.style.width === '64px', btn.styl
 // left = min(1250 - 64 - 0, rail 1200 - 64 - 8 = 1128) = 1128 — still inside the conversation
 check('64px still clears the turn rail', btn.style.left === '1128px', btn.style.left)
 check('the probe reports the size beside the stored value and the range',
-  sandbox.window.__dockFlashOverlay().triggerSize === 64 &&
-  sandbox.window.__dockFlashOverlay().triggerSizeRange.max === 64,
-  JSON.stringify(sandbox.window.__dockFlashOverlay().triggerSizeRange))
+  sandbox.window.dshFlashOverlay().triggerSize === 64 &&
+  sandbox.window.dshFlashOverlay().triggerSizeRange.max === 64,
+  JSON.stringify(sandbox.window.dshFlashOverlay().triggerSizeRange))
 
 // Out-of-range and junk input must clamp rather than reach a CSS length.
 const errsBefore = renderErrors.length
@@ -1006,7 +1006,7 @@ sizeSwitch.setValue(8)
 check('a value below the minimum clamps UP to 24 — the control only enlarges',
   sizeSwitch.getValue() === 24, String(sizeSwitch.getValue()))
 store.set('dsh-flash:trigger-size', 'junk')
-const probeJunk = sandbox.window.__dockFlashOverlay()
+const probeJunk = sandbox.window.dshFlashOverlay()
 check('a hand-edited junk value does not reach the geometry',
   probeJunk.triggerSize === null || Number.isFinite(probeJunk.triggerSize),
   String(probeJunk.triggerSize))
@@ -1091,7 +1091,7 @@ console.log('\n=== 11. a host-stored size reaches the button ===')
   await new Promise((r) => setTimeout(r, 20))
 
   const btn2 = sandbox2.document.getElementById('dsh-flash-overlay-trigger')
-  const probeH = sandbox2.window.__dockFlashOverlay()
+  const probeH = sandbox2.window.dshFlashOverlay()
   check('the host-stored size was adopted (the cache had no such key)',
     probeH.triggerSizeStored === 48, JSON.stringify({ stored: probeH.triggerSizeStored, local: store2.get('dsh-flash:trigger-size') }))
   check('...and it is what the button is drawn at', !!btn2 && btn2.style.width === '48px', btn2 && btn2.style.width)
@@ -1126,8 +1126,8 @@ console.log('\n=== 11. a host-stored size reaches the button ===')
   check('switching to a slot position clamps the DISPLAY to 48 — the row still fits',
     sizeSwitch2.getValue() === 48, String(sizeSwitch2.getValue()))
   check('the stored value was NOT rewritten by that clamp',
-    probeH.triggerSizeStored === 48 || sandbox2.window.__dockFlashOverlay().triggerSizeStored === 48,
-    JSON.stringify(sandbox2.window.__dockFlashOverlay().triggerSizeStored))
+    probeH.triggerSizeStored === 48 || sandbox2.window.dshFlashOverlay().triggerSizeStored === 48,
+    JSON.stringify(sandbox2.window.dshFlashOverlay().triggerSizeStored))
 }
 
 // `_migrateLocalToHost` lets a browser-local value overwrite the host's — right
@@ -1297,7 +1297,7 @@ console.log('\n=== 12c. a stale free-position seed is re-clamped into the window
   pluginF.apply(ctxF)
   await new Promise((r) => setTimeout(r, 20))
 
-  const pF = sandboxF.window.__dockFlashOverlay()
+  const pF = sandboxF.window.dshFlashOverlay()
   const sizeF = pF.triggerSize
   const maxX = Math.max(8, sandboxF.innerWidth - sizeF - 8)
   check('the stale 3000px-right free seed is re-clamped INTO the window on entry',
@@ -1318,7 +1318,7 @@ console.log('\n=== 12c. a stale free-position seed is re-clamped into the window
     sandboxF.document.__fire('mousemove', mouse(400, 60))  // dx = -980
     sandboxF.document.__fire('mouseup', mouse(400, 60))
     btnF.dispatch('click', mouse(400, 60))
-    const moved = sandboxF.window.__dockFlashOverlay().freeOffset
+    const moved = sandboxF.window.dshFlashOverlay().freeOffset
     check('a left drag now moves the seed horizontally (x dragged from the edge back left)',
       !!moved && moved.x === maxX - 980 && moved.y === 30,
       moved && `resolved x=${moved.x} y=${moved.y}`)
@@ -1391,7 +1391,7 @@ console.log('\n=== 12d. a FREE-OFFSET SEED whose x member is null is refused, no
   pluginD.apply(ctxD)
   await new Promise((r) => setTimeout(r, 20))
 
-  const pD = sandboxD.window.__dockFlashOverlay()
+  const pD = sandboxD.window.dshFlashOverlay()
   const sizeD = pD.triggerSize
   const maxXD = Math.max(8, sandboxD.innerWidth - sizeD - 8)
   check('a null-x free seed is refused and falls back to an in-window number',
@@ -1471,8 +1471,8 @@ console.log('\n=== 12. a host that answers LATE still reaches the button ===')
   check('before the host answers, the button is at the default', !!btn3 && btn3.style.width === '24px',
     btn3 && btn3.style.width)
   check('...and the probe says the value is only local',
-    sandbox3.window.__dockFlashOverlay().sizeSource !== 'host',
-    sandbox3.window.__dockFlashOverlay().sizeSource)
+    sandbox3.window.dshFlashOverlay().sizeSource !== 'host',
+    sandbox3.window.dshFlashOverlay().sizeSource)
 
   release()                                   // the host finally answers
   await new Promise((r) => setTimeout(r, 10))
@@ -1482,11 +1482,11 @@ console.log('\n=== 12. a host that answers LATE still reaches the button ===')
   check('...scaling the glyph with it (64 -> 43)', !!btn3 && btn3.children[0].getAttribute('width') === '43',
     btn3 && btn3.children[0].getAttribute('width'))
   check('...and the late offset was adopted too',
-    sandbox3.window.__dockFlashOverlay().offset.dy === 40,
-    JSON.stringify(sandbox3.window.__dockFlashOverlay().offset))
+    sandbox3.window.dshFlashOverlay().offset.dy === 40,
+    JSON.stringify(sandbox3.window.dshFlashOverlay().offset))
   check('the probe now names the host as the source',
-    sandbox3.window.__dockFlashOverlay().sizeSource === 'host',
-    sandbox3.window.__dockFlashOverlay().sizeSource)
+    sandbox3.window.dshFlashOverlay().sizeSource === 'host',
+    sandbox3.window.dshFlashOverlay().sizeSource)
 }
 
 console.log('\n=== 13. the open panel must not cover its own button ===')
@@ -1984,8 +1984,8 @@ console.log('\n=== 18. the overlay context menu ===')
   const menu = menuEl()
   check('the right-click opened a menu', !!menu)
   check('...and suppressed the browser\'s own', sawDefault)
-  check('the probe reports it open', sandbox.window.__dockFlashOverlay().menuOpen === true,
-    String(sandbox.window.__dockFlashOverlay().menuOpen))
+  check('the probe reports it open', sandbox.window.dshFlashOverlay().menuOpen === true,
+    String(sandbox.window.dshFlashOverlay().menuOpen))
 
   const rows = menu ? menu.descendants().filter((e) => e.getAttribute('role') === 'menuitem') : []
   const textOf = (e) => e.descendants().map((c) => c.textContent).join('')
@@ -2003,7 +2003,7 @@ console.log('\n=== 18. the overlay context menu ===')
 
   // The default layer clears the highest z-index DSH itself uses (1100, measured
   // across its client bundles), and the button stays one above the panel.
-  const probe = sandbox.window.__dockFlashOverlay()
+  const probe = sandbox.window.dshFlashOverlay()
   check('the default layer is 1150 — above DSH\'s own ceiling of 1100, not 9999x',
     probe.triggerLayer === 1150, String(probe.triggerLayer))
   check('the button is one level above the panel',
@@ -2051,8 +2051,8 @@ console.log('\n=== 18. the overlay context menu ===')
       `${liveBtn().style.zIndex} (panel ${panelEl().style.zIndex})`)
     check('...and persists to localStorage for the pre-host render',
       store.get('dsh-flash:trigger-layer') === '2000', String(store.get('dsh-flash:trigger-layer')))
-    check('...and the probe reports it', sandbox.window.__dockFlashOverlay().triggerLayer === 2000,
-      String(sandbox.window.__dockFlashOverlay().triggerLayer))
+    check('...and the probe reports it', sandbox.window.dshFlashOverlay().triggerLayer === 2000,
+      String(sandbox.window.dshFlashOverlay().triggerLayer))
   }
 
   // Rest opacity: the setting, and the rule that a finished drag releases it.
@@ -2060,8 +2060,8 @@ console.log('\n=== 18. the overlay context menu ===')
   check('the 0.85 opacity preset is offered', !!opacityRow)
   if (opacityRow) {
     check('no drag is in progress before the pick (the flag forces it solid)',
-      sandbox.window.__dockFlashOverlay().dragging === false,
-      String(sandbox.window.__dockFlashOverlay().dragging))
+      sandbox.window.dshFlashOverlay().dragging === false,
+      String(sandbox.window.dshFlashOverlay().dragging))
     opacityRow.dispatch('click', { type: 'click', preventDefault() {}, stopPropagation() {} })
     check('picking it repaints the button at rest', liveBtn().style.opacity === '0.85', String(liveBtn().style.opacity))
     check('...and persists', store.get('dsh-flash:overlay-opacity') === '0.85',
@@ -2084,8 +2084,8 @@ console.log('\n=== 18. the overlay context menu ===')
   check('the menu is still on screen before Escape', !!menuEl())
   sandbox.document.__fire('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} })
   check('Escape closes the menu', !menuEl())
-  check('...and the probe agrees', sandbox.window.__dockFlashOverlay().menuOpen === false,
-    String(sandbox.window.__dockFlashOverlay().menuOpen))
+  check('...and the probe agrees', sandbox.window.dshFlashOverlay().menuOpen === false,
+    String(sandbox.window.dshFlashOverlay().menuOpen))
 }
 
 // ── the rail's left placement must MIRROR DSH, not re-state an old formula ──
@@ -2099,7 +2099,7 @@ console.log('\n=== 18. the overlay context menu ===')
 // "invisible after moving left".
 //
 // Nothing here noticed, because no check had ever looked at this stylesheet —
-// section 4 only asserts that `__dockFlashTurnRail()` exists. The offset is now
+// section 4 only asserts that `dshFlashTurnRail()` exists. The offset is now
 // READ from DSH's own rule, so the assertions below pin the derivation, not a
 // literal: the stub authors `13px`, which equals no fallback in the bundle.
 console.log('\n=== 19. the rail mirror follows DSH\'s own offset ===')
@@ -2781,7 +2781,7 @@ console.log('\n=== 22. activating a handle-less skin IN-PAGE still reloads ===')
 
     // The trace is the answer to "the press did nothing": it has to show WHICH
     // route ran and, on the in-page route, whether a write happened at all.
-    const trace6 = typeof sandbox6.__dockFlashSkinTrace === 'function' ? sandbox6.__dockFlashSkinTrace() : []
+    const trace6 = typeof sandbox6.dshFlashSkinTrace === 'function' ? sandbox6.dshFlashSkinTrace() : []
     // The route this press takes is `pluginManager`, not `applySkin`: a skin with a
     // loader entry is switched there, and the entry id it resolved (`dream-skin`) is what
     // says the right row was addressed — a wrong id answers `unknown-plugin` and the
@@ -2933,7 +2933,7 @@ console.log('\n=== 23. a describe() that is NOT a promise must not kill the plug
     check('the sync-describe case still finishes apply() (the service is provided)',
       !!provided.quickControl, 'quickControl provided=' + !!provided.quickControl)
 
-    const probe = sb.window.__dockFlashPrefs()
+    const probe = sb.window.dshFlashPrefs()
     // Not merely tolerated: the direct view has to be PARSED, or the plugin runs
     // on defaults while looking like it loaded.
     check('...and the sync answer is still understood as the namespace list',
@@ -2955,7 +2955,7 @@ console.log('\n=== 23. a describe() that is NOT a promise must not kill the plug
     check('the throwing-describe case still finishes apply() too',
       !!provided.quickControl, 'quickControl provided=' + !!provided.quickControl)
 
-    const probe = sb.window.__dockFlashPrefs()
+    const probe = sb.window.dshFlashPrefs()
     // ...and the refusal is REPORTED rather than swallowed: a preference load
     // that fails without a word is the silent-failure shape this loader exists
     // to avoid.
@@ -3470,7 +3470,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
     btn.dispatch('click', ev(1))
     await new Promise((r) => setTimeout(r, 20))
     return { reg, updates, sb, btn, ev, ctx, provided,
-             snapshot: () => sb.window.__dockFlashPanelOrder(),
+             snapshot: () => sb.window.dshFlashPanelOrder(),
              setMaster: (v) => { masterOn = !!v; reg.notifyChange('harness:master') } }
   }
 
@@ -3676,7 +3676,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
     // The docked workbench panel is mounted by dock-base, with none of the standalone props, and
     // it must stay FULL: reading the preference unconditionally is what made it draw icon-only
     // rows and no tab headers inside dock-base's own pane.
-    const compactFor = (standalone) => t.sb.window.__dockFlashCompactMode(standalone)
+    const compactFor = (standalone) => t.sb.window.dshFlashCompactMode(standalone)
     check('compact mode is in force on the surface dock-flash owns (standalone: true)',
       compactFor(true) === true, String(compactFor(true)))
     check('...and NOT on a surface it does not own — the docked workbench panel stays full',
@@ -3780,10 +3780,10 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
     // schema; the point of this assertion is that its ghost cannot reach the docked panel.
     const docked = await openCompactPanel(true, true)
     check('the DOCKED surface is never compact, even with a stored docked flag',
-      docked.sb.window.__dockFlashCompactMode(false) === false
-        && docked.sb.window.__dockFlashCompactMode(true) === true,
-      'docked=' + docked.sb.window.__dockFlashCompactMode(false)
-        + ' floating=' + docked.sb.window.__dockFlashCompactMode(true))
+      docked.sb.window.dshFlashCompactMode(false) === false
+        && docked.sb.window.dshFlashCompactMode(true) === true,
+      'docked=' + docked.sb.window.dshFlashCompactMode(false)
+        + ' floating=' + docked.sb.window.dshFlashCompactMode(true))
 
     check('two CONSECUTIVE toggle-only items share one row (half a row each)',
       !!snap && snap.compact.pairedToggleRows.some((row) => row.length === 2
@@ -3947,7 +3947,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
   // panel open, never re-rendered at all.
   //
   // `createRoot().render()` INVOKES the tree in this sandbox and the panel rewrites
-  // `__dockFlashPanelOrder()` from its render body, so the snapshot after a press is the snapshot
+  // `dshFlashPanelOrder()` from its render body, so the snapshot after a press is the snapshot
   // that press PRODUCED. Asserting that end state is what caught nothing the first time: a counted
   // "re-render requested" passed while the real panel stayed full-width.
   {
@@ -4139,14 +4139,14 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stan
   // the HOST side of the contract — the published service and the claim bookkeeping —
   // and not the adapter's five registrations, which its own repository's harness owns.
   // The rows are the truth table from docs/refactor-plan-core-adapter-split.md §1.3.
-  const hostSvc = sandbox.window.__dockFlashHost && sandbox.window.__dockFlashHost()
-  const panelSvc = sandbox.window.__dockFlashPanelService && sandbox.window.__dockFlashPanelService()
+  const hostSvc = sandbox.window.dshFlashHost && sandbox.window.dshFlashHost()
+  const panelSvc = sandbox.window.dshFlashPanelService && sandbox.window.dshFlashPanelService()
   const boltEl = () => sandbox.document.getElementById('dsh-flash-overlay-trigger')
 
   check('the panel host is published (claim / release / releaseOne / isClaimed)',
     !!hostSvc && typeof hostSvc.claim === 'function' && typeof hostSvc.release === 'function'
       && typeof hostSvc.releaseOne === 'function' && typeof hostSvc.isClaimed === 'function',
-    hostSvc ? Object.keys(hostSvc).join(',') : 'no __dockFlashHost hook')
+    hostSvc ? Object.keys(hostSvc).join(',') : 'no dshFlashHost hook')
 
   check('the service speaks version 1 and exposes exactly the frozen field set',
     !!panelSvc && panelSvc.version === 1
@@ -4154,7 +4154,7 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stan
         === 'ErrorBoundary,Header,Panel,host,i18n,icon,registry,version',
     panelSvc
       ? 'v' + panelSvc.version + ' fields=' + Object.keys(panelSvc).sort().join(',')
-      : 'no __dockFlashPanelService hook')
+      : 'no dshFlashPanelService hook')
 
   // ── Row 1: the core alone offers the ⚡, and nothing is claimed ─────────────────
   check('with no dock host at all, the core itself offers the ⚡ and holds no claim',
@@ -4435,7 +4435,7 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
   const A = makeLocaleService('en')
   const a = sandboxWithLocale(A.svc)
   a.plugin.apply(a.ctx)
-  const aSvc = a.sb.window.__dockFlashPanelService()
+  const aSvc = a.sb.window.dshFlashPanelService()
   const t = aSvc && aSvc.i18n && aSvc.i18n.t
 
   check('the bundle registered its dictionaries under its own namespace',
@@ -4502,7 +4502,7 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
   // ── (e) the fallback, which is the ONLY thing running without the plugin ──────
   const b = sandboxWithLocale(undefined)
   b.plugin.apply(b.ctx)
-  const tFallback = b.sb.window.__dockFlashPanelService().i18n.t
+  const tFallback = b.sb.window.dshFlashPanelService().i18n.t
   check('with no locale service, every string still resolves from the built-in tables',
     tFallback('title') === 'Quick Control' && tFallback('no-such-key-anywhere') === 'no-such-key-anywhere',
     't(title)=' + tFallback('title'))
@@ -4539,8 +4539,8 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
   // answer from the freshly re-registered zh table.
   C.svc.setLocale('zh')
   check('...and the panel is speaking Chinese again, from the re-registered service',
-    c.sb.window.__dockFlashPanelService().i18n.t('title') === '快捷控制',
-    't(title)=' + c.sb.window.__dockFlashPanelService().i18n.t('title'))
+    c.sb.window.dshFlashPanelService().i18n.t('title') === '快捷控制',
+    't(title)=' + c.sb.window.dshFlashPanelService().i18n.t('title'))
 }
 
 // ── 30. a detach/re-attach cycle leaves ONE panel, and the gestures still work ──
@@ -4568,7 +4568,7 @@ console.log('\n=== 30. detach/re-attach: exactly one container, and the gestures
   // document again, so Escape reaches it. They are regression guards, not a
   // reproduction of the reported defect — say which one an assertion is, or a
   // passing suite reads as coverage it does not have.
-  const hostSvc = sandbox.window.__dockFlashHost()
+  const hostSvc = sandbox.window.dshFlashHost()
   const panels = () => body.descendants().filter((e) => e.getAttribute('data-dsh-plugin') === 'dsh-flash-standalone')
   const bolt = () => sandbox.document.getElementById('dsh-flash-overlay-trigger')
 
@@ -4628,17 +4628,17 @@ console.log('\n=== 30. detach/re-attach: exactly one container, and the gestures
   // Leave the page as section 6 left it: no panel on screen.
   sandbox.document.__fire('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} })
 
-  // `__dockFlashHeaders()` is the probe a user is asked to run in the browser, so the one
+  // `dshFlashHeaders()` is the probe a user is asked to run in the browser, so the one
   // failure it must never have is throwing while trying to report. The harness cannot assert
   // WHAT it reports — the React stub invokes the panel component but renders nothing to the
   // stub DOM, so there are no boxes here to measure. It can assert the probe survives a call,
   // which is what a `ReferenceError` inside it would otherwise cost: a diagnosis attempt that
   // produces nothing but a console error.
-  const headers = sandbox.window.__dockFlashHeaders && sandbox.window.__dockFlashHeaders()
-  check('__dockFlashHeaders() answers without throwing', !!headers && Array.isArray(headers.containers))
+  const headers = sandbox.window.dshFlashHeaders && sandbox.window.dshFlashHeaders()
+  check('dshFlashHeaders() answers without throwing', !!headers && Array.isArray(headers.containers))
   // The render counter is the half the DOM cannot answer, so it is checked where it CAN be:
   // the stub does invoke the panel component, so a standalone render must have been counted.
-  check('__dockFlashHeaders() counts the standalone renders it saw',
+  check('dshFlashHeaders() counts the standalone renders it saw',
     !!headers && headers.renders.count.standalone > 0)
 }
 

@@ -102,7 +102,7 @@ installed, and `readdirSync` returns `desktop` first. A `dsh web` process — th
 `web` — therefore answered `dir: …\profiles\desktop` on `/plugins/dock-flash/profile-packages`, and
 every skin toggle wrote `profiles\desktop\cordis.patch.yml` while the running loader watched
 `profiles\web\cordis.patch.yml`. Each write honestly reported `application: "applied"` and the page
-reloaded; no skin ever came up, and `__dockFlashSkinTrace()` showed `inEffect: []` on every render
+reloaded; no skin ever came up, and `dshFlashSkinTrace()` showed `inEffect: []` on every render
 while `stored` named the skin. On DSH Desktop the same bug is invisible — the reserved `desktop`
 profile is both the running profile and the first `readdirSync` hit — which is exactly why the report
 read "在桌面版是生效的呀". The launcher's own answer removes the ambiguity, so the `readdirSync`
@@ -172,7 +172,7 @@ if (_bootIds.size && !_bootIds.has(id) && !_bootIds.has(id + '/client')) { … s
 - the only confirmation source consulted was `_bootIds` — while the canonical id was sitting in
   `_skinBodyAttrs`, this plugin's own curated table, the whole time.
 
-Measured on a real profile (`await window.__dockFlashSkinSwitch()`, `market: unavailable`,
+Measured on a real profile (`await window.dshFlashSkinSwitch()`, `market: unavailable`,
 `plugins: []`, `bundles: []` — so neither the market nor the plugin manager was involved):
 
 ```
@@ -263,7 +263,7 @@ fails exactly like a missing one.
 Two habits follow, and they are the general lesson:
 
 - **Never let a load path return a bare `false`.** Every exit records a *named* reason, logs it, and
-  `__dockFlashPrefs()` reports the host's view beside localStorage's. This is Critical Rule 11's
+  `dshFlashPrefs()` reports the host's view beside localStorage's. This is Critical Rule 11's
   silent `require` in a new place.
 - **Print the shape you did not recognise** — the failure message lists the descriptor's keys and the
   namespaces actually seen, so the next mismatch is a copy-paste rather than a bisect.
@@ -336,7 +336,7 @@ Both declarations are required — see AGENTS.md "Skin System Architecture" for 
 
 ### Diagnostics
 
-`__dockFlashSkinSwitch()` shows `pluginManagerState:` (entries with `skin`/`theme`/`macintosh` in their
+`dshFlashSkinSwitch()` shows `pluginManagerState:` (entries with `skin`/`theme`/`macintosh` in their
 name, with their enabled/disabled state) instead of the old `market:` field. Skin objects carry
 `pmOnly: true` (replacing `marketOnly`) when discovered only through the plugin manager.
 
@@ -384,8 +384,8 @@ has an inverse.** The plugin-manager entry switch is that inverse; the market ro
 
 ### Diagnostics hooks
 
-`__dockFlashSkinSwitch()` prints the plugin manager's skin-like entries with their enabled state;
-skin objects discovered only through the plugin manager carry `pmOnly: true`. `__dockFlashSkinTrace()`
+`dshFlashSkinSwitch()` prints the plugin manager's skin-like entries with their enabled state;
+skin objects discovered only through the plugin manager carry `pmOnly: true`. `dshFlashSkinTrace()`
 prints the 40-entry `sessionStorage` ring (route, whether the write landed, whether a reload was
 scheduled).
 

@@ -45,7 +45,7 @@ is no longer available.
 | `inject: ['remote', 'remote.settings', 'remote.pluginManager']` | `inject: ['remote', 'remote.settings', 'remote.pluginManager', 'remote.pluginInventory']` |
 | Skin switch registered only after `_refreshMarketThemes()` succeeded | Skin switch registered unconditionally in `ctx.effect` |
 
-The diagnostic `__dockFlashSkinSwitch()` now shows `pluginManagerState:` (enabled/disabled entries
+The diagnostic `dshFlashSkinSwitch()` now shows `pluginManagerState:` (enabled/disabled entries
 matching `_skinHint`) instead of `market:`. The skin trace ring still records activation events,
 but `press.path` is now `'pluginManager'` instead of `'market'`.
 
@@ -173,7 +173,7 @@ Five invariants hold this together:
   shape: the panel's structure and the saved order survive a proxy being configured or removed,
   and nothing leaves the screen unless the user folds it.
 
-`__dockFlashPanelOrder()` prints the order the last render resolved next to what is persisted.
+`dshFlashPanelOrder()` prints the order the last render resolved next to what is persisted.
 
 ---
 
@@ -317,7 +317,7 @@ that would have survived the first fix.
 `$$typeof`/`type`/`props`. `el.appendChild()` requires a real `Node`, so it threw `TypeError: Failed
 to execute 'appendChild' on 'Node': parameter 1 is not of type 'Node'` on the line **before**
 `overlayEl = el`. The consequences chained: the button was never appended to `<body>`, so
-`__dockFlashOverlay()` reported `overlayElMounted: false` *with the position correctly selected and
+`dshFlashOverlay()` reported `overlayElMounted: false` *with the position correctly selected and
 the anchor correctly found* — and because `applyTrigger()` runs before `ctx.inject(['slots'], …)` in
 `apply()`, that throw propagated into `apply()`'s own catch, so the slots callback never ran: **no**
 trigger position worked, and the trigger-position switch was never registered either. One position's
@@ -378,7 +378,7 @@ bundle older than every fix being tested, and "the fix did not work" and "the br
 code" produced identical symptoms. The decisive measurement is not in the browser at all — compare
 `lib/client.js`'s mtime against the DSH server's `StartTime`; when the file is newer than the server,
 the served snapshot predates it. `CLIENT_VERSION` is now a single constant, it is the **first** field
-`__dockFlashOverlay()` prints, and `pnpm run check:docs` fails when it disagrees with `package.json`.
+`dshFlashOverlay()` prints, and `pnpm run check:docs` fails when it disagrees with `package.json`.
 
 Verified by evaluating the real `lib/client.js` in a V8 sandbox against a minimal DOM, with the
 `slots` service deliberately never arriving: 18 checks pass on the fixed build — the button mounts
@@ -421,7 +421,7 @@ moment the client's range changed — precisely the 1.1.0 lesson, already record
 
 The clamp is applied to what is **displayed and drawn**, never to what is stored: set 64 on the
 overlay, switch to a slot position, and the row reads 48 while `settings.yaml` still holds 64 — switch
-back and it is 64 again. `__dockFlashOverlay()` therefore reports three separate facts
+back and it is 64 again. `dshFlashOverlay()` therefore reports three separate facts
 (`triggerSize`, `triggerSizeStored`, `triggerSizeRange`), because a user seeing 48 after setting 64
 should be able to read why rather than guess.
 
@@ -880,7 +880,7 @@ a loop — `_applySkin()` also runs at boot, so an unconditional write there wou
 the writes are collected, with the reload happening only when one of them actually changed something
 (`pending` → `Promise.all` → `_fadeBeforeReload()`). When neither switch is reachable,
 `_warnSkinNotControllable()` still names the skin and points at the plugins page — reporting, never
-dismantling. `__dockFlashSkinSwitch()` prints what the page can actually see — whether the remote is
+dismantling. `dshFlashSkinSwitch()` prints what the page can actually see — whether the remote is
 mounted, which rows are addressable, what the bundle list says — because "the press did nothing" and "the
 press wrote to a layer that only boot reads" are indistinguishable from the outside.
 
@@ -1004,7 +1004,7 @@ resolves without a write and without a reload — the guard that keeps this safe
 > with `[]`, the trace check with `wrote: true` and no `reload` event, and the persistence check — which is
 > the reported symptom in one line.
 
-### `__dockFlashSkinTrace()`: naming the route, the write, and the reload
+### `dshFlashSkinTrace()`: naming the route, the write, and the reload
 
 A skin press that does nothing leaves no trace in any file, and the two possible causes have opposite
 fixes: either no write happened (no lever, the remote did not resolve, the market refused) or a write
@@ -1021,12 +1021,12 @@ thing that would have shown it. So every decision on the way is appended to a 40
 | `reload` | every `_fadeBeforeReload()` | `why` — `pluginManager:<name>` or `applySkin:<id>` |
 | `render` | 2.5s after load | `inEffect` (the marked skins on screen), `stored` (`_getActiveSkinId()`) |
 
-`window.__dockFlashSkinTrace()` in the console; `window.__dockFlashSkinSwitch()` remains the
+`window.dshFlashSkinTrace()` in the console; `window.dshFlashSkinSwitch()` remains the
 point-in-time snapshot of services and rows.
 
 **The ring lives in `sessionStorage`, and that is not an optimisation.** Every event it records is a
 step towards a page reload, so a memory-only ring is wiped by the very event it exists to explain —
-the first report of this bug came back with `__dockFlashSkinTrace()` printing `[]` after the user had
+the first report of this bug came back with `dshFlashSkinTrace()` printing `[]` after the user had
 pressed 默认 → Dream → 默认 → Dream, which is exactly as consistent with "every press reloaded" as
 with "no press ever reached `setValue`". An empty trace therefore has to be impossible to confuse with
 a broken one; `boot`/`switch` are written before any user action for that reason, and a **bare `[]` is
@@ -1143,7 +1143,7 @@ presets. The scope rule is what makes it a menu rather than a second panel:
 - **`trigger-position` is unreachable from here by construction.** The overlay is not one of its options, so
   picking a position from the overlay's own menu makes the button vanish from under the pointer.
 - **What is in it is what only this surface can answer**: the offset (visible nowhere but
-  `__dockFlashOverlay()`), the version (a stale bundle and a failed fix are indistinguishable without it), and
+  `dshFlashOverlay()`), the version (a stale bundle and a failed fix are indistinguishable without it), and
   the layer — a property of this floating button, not of any switch.
 - **It is not a registry.** A third party contributing entries would justify an extension seam; one consumer
   does not, and this codebase's rule is not to build the seam before the second caller exists.
@@ -1163,7 +1163,7 @@ does not work.
   sets the shared `dragging` singleton on every mousedown while only `handleDragEnd` clears it. So
   `dragging` stayed TRUE for the rest of the run, and because that flag forces the overlay solid, the new
   opacity setting looked completely inert. The helper is now a real `tap()` (press, release, click), and
-  `dragging` is mirrored into `__dockFlashOverlay()` so a stuck flag is reportable rather than inferred.
+  `dragging` is mirrored into `dshFlashOverlay()` so a stuck flag is reportable rather than inferred.
 - **`El` had no `contains()`.** The outside-click handler calls `menu.contains(ev.target)`, so it threw
   partway through — and everything after the throw silently did not run, which is how a `dragging` flag stays
   set. Ancestry is what the DOM answers here (`contains` is not "is a child"), and the bundle now also
@@ -1253,7 +1253,7 @@ introduced were fixed alongside it:
   dash has no transform at all).
 
 **The harness could not have caught it**, and that is the reusable lesson: no check had ever looked at
-this stylesheet. Section 4 only asserted that `__dockFlashTurnRail()` exists. Two stub gaps made the
+this stylesheet. Section 4 only asserted that `dshFlashTurnRail()` exists. Two stub gaps made the
 mirror untestable in principle — `getElementById` searched `body` only, so the bundle could not find a
 `<style>` tag it had itself appended to `head`; and the sandbox exposed no `styleSheets`, so
 `_railNativeRight()` always fell back to a constant. Section 19 now authors a **distinctive** offset
@@ -1373,7 +1373,7 @@ Two habits follow from that, and they are the general lesson rather than a note 
 
 - **Never let a load path return a bare `false`.** The first version of `loadHostPreferences()`
   did, on four different branches, and the failure was indistinguishable from "there was nothing
-  to load". Every exit now records a *named* reason, logs it, and `__dockFlashPrefs()` reports the
+  to load". Every exit now records a *named* reason, logs it, and `dshFlashPrefs()` reports the
   host's view beside localStorage's. This is Critical Rule 11's silent `require` in a new place.
 - **Print the shape you did not recognise.** The failure message lists the descriptor's own keys
   and the namespaces actually seen, so the next mismatch is a copy-paste rather than a bisect.
@@ -1673,4 +1673,4 @@ Read this when a symptom looks familiar and you want the case that produced the 
 | A glyph wider than its font box | A 2-4px overflow that survives every structural fix | **Every glyph in this panel is wider than the ~`font-size` an inline element reserves for it.** Give each a pixel `inline-flex` box, sized for the WIDEST glyph of any set that swaps, with the same box in both states. **Do not derive the number from one font** — the spread across a user’s stack is ~1.4x. Measure with .NET `MeasureString`: the offline half of checklist item 14 — the measured table is above, in this file. |
 | `minWidth: 0` applied to a `flex: none` element | Looks like a shrink fix, is a no-op | `flex: none` means `flex-shrink: 0`, so the box can never shrink and `minWidth` has nothing to act on. Check the flex shorthand before adding the property; a no-op fix is worse than none, because it reads as solved |
 | An emoji-capable glyph chosen for a small icon | A full-colour glyph, at a size the colour-emoji font picks, sitting beside monochrome `⇅`/`↺`/`▶` | `☑`/`☐`/`👁` are emoji-presentation code points and render through Segoe UI Emoji on Windows. Prefer plain geometric shapes from the family already in use (`●`/`○`/`◉`), which carry no emoji presentation |
-| Diagnosing from the shape of the DOM tree | Fixing the wrong element confidently | The live element carries its own evidence — `__dockFlashOverflow()` prints each overflow's `text`, which is how a `⇅▶` button group was told apart from the title the tree depth suggested. Read the text before forming the hypothesis |
+| Diagnosing from the shape of the DOM tree | Fixing the wrong element confidently | The live element carries its own evidence — `dshFlashOverflow()` prints each overflow's `text`, which is how a `⇅▶` button group was told apart from the title the tree depth suggested. Read the text before forming the hypothesis |

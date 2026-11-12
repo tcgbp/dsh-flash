@@ -7,7 +7,7 @@
 >
 > **2026-10 状态更新**：C/D 的监控部分也已完成物理拆包 —— 上下文监控 → `dsh-flash-ctx-mon`，
 > 内存/GC 监控 → `dsh-flash-mem-mon`，网络审计 → `dsh-flash-net-mon`。dock-flash 只保留
-> QuickControl 面板（A）、`dockFlashAlerts` 共享注册表、宿主推送队列 provider，以及把这些
+> QuickControl 面板（A）、`dshFlashAlerts` 共享注册表、宿主推送队列 provider，以及把这些
 > 伴随插件的告警接回面板的集成表（`_COMPANION_PREFIXES` / `_PROVIDER_SWITCH_MAP` /
 > `_PROVIDER_LABELS` / cluster 展开与 alerts 依赖 id 清单）。上下文阈值与
 > `modelContextWindows` 已移出 `dock-flash` 设置命名空间。
@@ -21,7 +21,7 @@
 | **A** | QuickControl 面板 | 注册 `dock-flash` settings 命名空间占位（`Config` / `settings.configure`） | `ctx.provide('quickControl', registry)`、面板 UI、排序/隐藏状态机、皮肤系统、i18n |
 | **B** | ~~系统代理~~ **已拆分→dsh-flash-proxy** | ~~`applyProxyEnv()` / `resolveNoProxy()` / `loadProxyModule()` / `proxyRouteForUrl()`；路由 `/proxy-status`、`/test-connection`~~ → 迁入 `dsh-flash-proxy` | ~~System 组「系统代理」cluster（select/slider/log）、启动时读回宿主值并回写~~ → 迁入 `dsh-flash-proxy` |
 | **C** | 网络审计（outbound 审计） | `NetworkMonitor` 类、`installRequestTracer()`（包装 `globalThis.fetch`）、`resolvePluginId()`（stack 解析）、`reconfigure()`；路由 `/network-log`、`/network-alerts`、`/network-whitelist`、`/network-plugin-whitelist` | System 组网络审计开关、`network-audit` provider 轮询 `/network-alerts` |
-| **D** | 系统告警 | 宿主侧内存队列 `_alertQueue`；路由 `/push-alert`、`/host-alerts` | `ctx.provide('dockFlashAlerts', alertRegistry)`、memory/context/network 三 provider、Toast/Dropdown 展示、`system-alerts` cluster |
+| **D** | 系统告警 | 宿主侧内存队列 `_alertQueue`；路由 `/push-alert`、`/host-alerts` | `ctx.provide('dshFlashAlerts', alertRegistry)`、memory/context/network 三 provider、Toast/Dropdown 展示、`system-alerts` cluster |
 
 ---
 
@@ -67,7 +67,7 @@
 | **K5** | `resolvePluginId()` / `_pluginIdFromStack()`（[src/index.ts:554-569](../src/index.ts#L554-L569)） | C | 用 `new Error().stack` 归因请求来源，脆弱的启发式。 |
 | **K6** | **代理路由被告警用**：`createNetworkAlertProvider` 轮询 `/proxy-status` 测网速（[lib/client.js:4753-4870](../lib/client.js#L4753-L4870)） | D→B（反向） | 告警子系统依赖代理子系统的 HTTP 路由来估网络延迟——跨子系统硬依赖。 |
 | **K7** | 客户端 `loadHostPreferences()` 单一映射（[lib/client.js:3409-3470](../lib/client.js#L3409-L3470)） | A+B+C+D | 34 个设置项在**一个对象**里映射到宿主命名空间，被注释明示「this list IS the contract」。任一子系统新增设置都耦合到这个清单。 |
-| **K8** | 客户端 `apply()` 内 `ctx.provide('quickControl')` 与 `ctx.provide('dockFlashAlerts')` 并行（[lib/client.js:10310-10324](../lib/client.js#L10310-L10324)） | A+D | 两个 service 在同一个 apply 生命周期里注册，dispose 相互纠缠（`alertRegistry.start()/stop()` 与面板状态机同生命周期）。 |
+| **K8** | 客户端 `apply()` 内 `ctx.provide('quickControl')` 与 `ctx.provide('dshFlashAlerts')` 并行（[lib/client.js:14309-14317](../lib/client.js#L14309-L14317)） | A+D | 两个 service 在同一个 apply 生命周期里注册，dispose 相互纠缠（`alertRegistry.start()/stop()` 与面板状态机同生命周期）。 |
 
 ---
 
@@ -82,7 +82,7 @@
    ┌─────────────┐
    │   D 系统告警  │ ── K6 ──────────▶  B 代理 /proxy-status 路由
    └─────┬───────┘                       (D 依赖 B 测网速)
-         │ produce dockFlashAlerts
+         │ produce dshFlashAlerts
          ▼
    ┌─────────────┐   K4(全局重写 fetch)  ┌─────────────┐
    │  C 网络审计   │ ───────────────────▶ │ 宿主全局      │

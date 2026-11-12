@@ -408,7 +408,7 @@ The rules, one line each. Phase tables, case histories and measurements are in
 - **Collect EVERY promise that represents a loader write, in BOTH directions.** `_applySkin()` pushes
   `_switchSkinBundle()` into `pending` for activation as well as deactivation, and reloads when any
   reports a real change: a write with no reload is a silent half-switch. When a press still does
-  nothing, `window.__dockFlashSkinTrace()` — a 40-entry ring in `sessionStorage`, because the switches
+  nothing, `window.dshFlashSkinTrace()` — a 40-entry ring in `sessionStorage`, because the switches
   it records are the ones that reload — names the route, whether the manager wrote, and whether a
   reload was scheduled.
 - **A handle-less skin that is still RENDERING must be reported**, or 默认 becomes unreachable: the
@@ -547,7 +547,7 @@ It is a procedure rather than a rule, so it lives beside the long-form notes and
 are verifying — **read it before claiming a change is tested**, because "it looks fine" is the check
 that let three real defects ship. One item in it is a rule, not a step, so it stays here:
 
-- **Layout overflow — measure it, do not eyeball it.** With the panel open, `__dockFlashOverflow()`
+- **Layout overflow — measure it, do not eyeball it.** With the panel open, `dshFlashOverflow()`
   reports dock-flash's own subtree (`true` scans the whole page, which is how "is this scrollbar even
   mine?" gets answered). **Measure at two widths, one of them narrow** — overflow is a function of
   container width, so one size proves nothing. **A flex item's default `min-width: auto` means
@@ -589,9 +589,9 @@ form and each carries its own example, so they are not repeated here — check t
 | `minWidth: 0` on a `flex: none` element | Looks like a shrink fix, is a no-op | `flex: none` is `flex-shrink: 0`, so there is nothing to act on. A no-op fix is worse than none — it reads as solved |
 | A glyph wider than its font box | A 2-4px overflow that survives every structural fix | Size a pixel `inline-flex` box for the WIDEST glyph of any set that swaps, same box in both states, never derived from one font. See [notes](docs/architecture-notes.md) |
 | An emoji-capable glyph as a small icon | A full-colour glyph beside monochrome `⇅`/`↺`/`▶` | `☑`/`☐` and an eye are emoji-presentation code points and render through the colour-emoji font on Windows. Prefer plain geometric shapes: `●`, `○`, `◉` |
-| Diagnosing from the shape of the DOM tree | Fixing the wrong element confidently | The live element carries its own evidence — `__dockFlashOverflow()` prints each overflow's `text`. Read it before forming the hypothesis |
+| Diagnosing from the shape of the DOM tree | Fixing the wrong element confidently | The live element carries its own evidence — `dshFlashOverflow()` prints each overflow's `text`. Read it before forming the hypothesis |
 | Two style objects that SWAP on one element declare different keys (`{border, borderBottom:'none'}` ↔ `{border}`) | The edge named by the override vanishes — but only for an element that was rendered in the OTHER state first. A fresh render, the source, and a static screenshot all look correct | React diffs style objects **key by key**: an UNCHANGED key (`border` is byte-identical in both) is skipped, and a VANISHED key is written as `''`, which clears the longhands the shorthand had set — nothing puts the edge back. **Both objects must declare the same keys**; `S.tabPageHeaderClosed` re-asserts `borderBottom`, the hairline is one `TAB_HAIRLINE` constant, and `check:overlay` section 26 pins the key-set equality |
-| A preference that restyles the panel, applied without checking WHICH surface is rendering | The **workbench panel looks broken** while the standalone panel looks right: dock-base's sidebar pane draws icon-only rows, no tab headers and no group titles, because a mode built to strip chrome from a floating strip was stripping it inside somebody else's window | The panel is mounted by two different parents. Gate such a mode on `props.standalone === true` (set by `renderPanel()`, absent from dock-base's props) — `_compactPanelForSurface()` states it once, and `window.__dockFlashCompactMode(true/false)` answers it without rendering. **A preference is not a licence to restyle a surface the plugin does not own** |
+| A preference that restyles the panel, applied without checking WHICH surface is rendering | The **workbench panel looks broken** while the standalone panel looks right: dock-base's sidebar pane draws icon-only rows, no tab headers and no group titles, because a mode built to strip chrome from a floating strip was stripping it inside somebody else's window | The panel is mounted by two different parents. Gate such a mode on `props.standalone === true` (set by `renderPanel()`, absent from dock-base's props) — `_compactPanelForSurface()` states it once, and `window.dshFlashCompactMode(true/false)` answers it without rendering. **A preference is not a licence to restyle a surface the plugin does not own** |
 | A column that holds ONE glyph on `flex: 1` | In a tight row the glyph **overlaps the control beside it**, and adding a gap between them does not help — the gap IS honoured | `flex: 1` is `flex: 1 1 0%`: a basis of ZERO, so the column gives up all of its width before the control gives up any, and a `flex: none` child (the icon) cannot shrink, so it spills out of its 0-width parent. MEASURED at a 140px row: column 0px, icon drawn 4..16, control starting at 12 — 4px of overlap. An icon-only column is `flex: none` (it IS the glyph); a column that holds text keeps `flex: 1` plus a `minWidth` floor |
 | Running the GraphFlow installer in this repo | `AGENTS.md` replaced by GraphFlow's own notes | It writes `AGENTS.md` unconditionally. `git checkout -- AGENTS.md`, keep those notes in `CLAUDE.md`, verify `grep -c dock-flash AGENTS.md` |
 
@@ -620,7 +620,7 @@ mismatch, and the `_skinBodyAttrs` cases — are in **[docs/architecture-notes.m
 
 ## Version History Pattern
 
-- Update version in **both** `package.json` (line 3) and the single `const CLIENT_VERSION` near the top of `lib/client.js`'s factory — the startup log and `__dockFlashOverlay()` both report it. One constant rather than a literal in the log line, because **a build that cannot name itself cannot be told apart from the previous one**. `pnpm run check:docs` asserts the two agree.
+- Update version in **both** `package.json` (line 3) and the single `const CLIENT_VERSION` near the top of `lib/client.js`'s factory — the startup log and `dshFlashOverlay()` both report it. One constant rather than a literal in the log line, because **a build that cannot name itself cannot be told apart from the previous one**. `pnpm run check:docs` asserts the two agree.
 - Both READMEs must stay in sync — same structure, same content, different language
 - No changelog in the READMEs — `CHANGELOG.md` and git log are the history records
 

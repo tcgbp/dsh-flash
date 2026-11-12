@@ -62,7 +62,7 @@ easiest to break invisibly.
    - **The 默认 boot sweep runs TWICE, and the second pass is the one that matters after a refresh.**
      Load the page with 默认 stored and a CSS skin active: the late pass (~1.5 s) must remove the
      skin's `<style data-plugin>` tag even when the tag appeared after dock-flash's own `apply()`.
-     `__dockFlashSkinTrace()` shows `boot-enforce {reason: 'deactivate-css-at-boot'}` only when the
+     `dshFlashSkinTrace()` shows `boot-enforce {reason: 'deactivate-css-at-boot'}` only when the
      scan actually SAW an active CSS skin, so a missing line plus a styled page means the tag arrived
      after both passes.
 3. **Skin preference**: Set a skin, refresh → it restores after ~300ms.
@@ -136,7 +136,7 @@ easiest to break invisibly.
 14. **Layout overflow — measure it, do not eyeball it.** The panel has no committed
     test suite and no headless browser, so "it looks fine" was the only check a UI change
     ever got — and that is how a horizontal scrollbar survived several releases without
-    anyone writing it down as a defect. Run `__dockFlashOverflow()` in the browser console
+    anyone writing it down as a defect. Run `dshFlashOverflow()` in the browser console
     (panel open) after any change that touches sizing, padding, flex or a fixed width:
     - It reports **only dock-flash's own subtree** by default and returns
       `{ ok: true, overflowing: 0 }` when clean. `ok: false` lists the offending elements
@@ -144,7 +144,7 @@ easiest to break invisibly.
     - **Measure at two window widths, one of them narrow.** Overflow is a function of
       container width, so a single size proves nothing: the same markup that fits at
       1600px can overflow at 1100px. The narrow pass is the one that finds the bug.
-    - `__dockFlashOverflow(true)` scans the whole page instead. Use it to answer "is this
+    - `dshFlashOverflow(true)` scans the whole page instead. Use it to answer "is this
       scrollbar even mine?" before hunting inside the plugin — the answer has been no
       before, and the container that overflowed belonged to DSH (`pI_x6G_rightbarCol` at
       `clientWidth: 0` holding 577px of content).
@@ -175,7 +175,7 @@ easiest to break invisibly.
       before any conversation exists, so this is the acquisition path (the `MutationObserver` plus the
       bounded retry); with a single positioning attempt at mount you get a mounted, in-the-DOM,
       permanently invisible button.
-    - **Read `__dockFlashOverlay()` and check `clientVersion` FIRST.** It must equal `package.json`'s
+    - **Read `dshFlashOverlay()` and check `clientVersion` FIRST.** It must equal `package.json`'s
       version. A browser served a stale bundle and a fix that did not work look identical in every
       other field, and did for several rounds. Then `overlayElMounted: true`, `anchorAdopted: true`,
       and a verdict starting with `ok`.
@@ -207,10 +207,10 @@ easiest to break invisibly.
     - **Rest opacity, and the drag-release rule**: set it to `0.85`, then drag the button and release with
       the pointer AWAY from it — it must return to 0.85, not stay at hover brightness. That was a real
       defect: the old guard read `if (!dragging)`, so brightness depended on where the pointer happened to
-      be when the drag ended. `__dockFlashOverlay().dragging` must read `false` after any release.
+      be when the drag ended. `dshFlashOverlay().dragging` must read `false` after any release.
     - **The minimum is the default**: the slider's leftmost value is 24, which is what every release
       to 1.3.x drew. There is no way to shrink the entry point.
-    - **Read `__dockFlashOverlay()` after a reload and check `sizeSource`** — it must say `host`.
+    - **Read `dshFlashOverlay()` after a reload and check `sizeSource`** — it must say `host`.
       A `localStorage/default` reading after a refresh means the size is not actually travelling with
       you (the host answered too late, or the read-back broke), which a single reload cannot otherwise
       reveal because the cache would answer for it. `triggerSizeStored` is what you stored and
@@ -261,7 +261,7 @@ easiest to break invisibly.
 17. **DSH-drift check: does `dock-flash` still recognise DSH's own markup?** Run this after any DSH
     upgrade, and whenever a feature that used to work "disappears" — because that is what this class
     of breakage looks like. Nothing is deleted; a selector simply stops matching.
-    - `__dockFlashTurnRail()` with a **long** conversation must report `visible: true`. A short
+    - `dshFlashTurnRail()` with a **long** conversation must report `visible: true`. A short
       conversation is the wrong test: the rail's scroller is `[scroller, fadeTop?, fadeBottom?]
       .join(' ')`, so the extra classes only appear once the rail is long enough to scroll — which
       is exactly when the feature matters. `reason: "no-usable-rail"` while the rail is plainly on
@@ -286,7 +286,7 @@ easiest to break invisibly.
       dimmed, with a tooltip saying its plugin is standing it down.
     - In `◉`, tick it — the choice is remembered even though the row still is not in the normal view.
       Then untick a *shown* row: it must stay listed in `⇅` too, dimmed with "hidden by you".
-    - `__dockFlashPanelOrder()` is the mechanical form of the same question: a stood-down unit appears
+    - `dshFlashPanelOrder()` is the mechanical form of the same question: a stood-down unit appears
       in `switches` (the inventory) and in `stoodDown`, and not in `drawn`; its group is absent from
       `groupsDrawn` while every other group is present. `pnpm run check:overlay` asserts exactly
       that, including that the normal view still drops a group whose every control is filtered.
