@@ -109,15 +109,10 @@ export interface FlashConfig {
    */
   overlayOpacity: Volatile<number>
 
-  // ── Alert thresholds and intervals ────────────────────────────────────────
-  // Per-monitor thresholds have been extracted to their companion plugins:
-  // dsh-flash-ctx-mon (context) and dsh-flash-mem-mon (memory). Only the
-  // host-pushed alert queue settings remain in this namespace.
-
-  /** Host alert queue: maximum entries. */
-  hostAlertQueueCap: Volatile<number>
-  /** Host alert queue: maximum retention (hours). */
-  hostAlertMaxAge: Volatile<number>
+  // ── Host-pushed alert queue (fixed) ──────────────────────────────────────
+  // The queue's capacity and retention were user settings once; they are now
+  // fixed constants, so this namespace owns no alert settings at all. See
+  // DEFAULT_HOST_ALERT_QUEUE_CAP / DEFAULT_HOST_ALERT_MAX_AGE.
 }
 
 /** Offset of the draggable overlay trigger from the conversation's top-right corner. */
@@ -220,8 +215,6 @@ const MIGRATE_FIELDS: ReadonlyArray<{ key: string; isDefault(v: unknown): boolea
   { key: 'triggerLayer', isDefault: (v) => v == null || v === DEFAULT_TRIGGER_LAYER },
   { key: 'overlayOpacity', isDefault: (v) => v == null || v === DEFAULT_OVERLAY_OPACITY },
   { key: 'compactPanel', isDefault: (v) => v == null || v === false },
-  { key: 'hostAlertQueueCap', isDefault: (v) => v == null || v === DEFAULT_HOST_ALERT_QUEUE_CAP },
-  { key: 'hostAlertMaxAge', isDefault: (v) => v == null || v === DEFAULT_HOST_ALERT_MAX_AGE },
 ]
 
 /**
@@ -369,12 +362,11 @@ export const Config = Schema.object({
   // per-session state because it is a way of working, and that button is its switch.
   compactPanel: Schema.boolean().default(false).volatile(),
 
-  // ── D · System alerts (merged with A per §7 decision) ────────────────
-  // Per-monitor thresholds extracted to companion plugins
-  // (dsh-flash-ctx-mon / dsh-flash-mem-mon); only the host alert queue
-  // settings remain in this namespace.
-  hostAlertQueueCap: Schema.number().default(DEFAULT_HOST_ALERT_QUEUE_CAP).volatile(),
-  hostAlertMaxAge: Schema.number().default(DEFAULT_HOST_ALERT_MAX_AGE).volatile(),
+  // ── D · System alerts ────────────────────────────────────────────────
+  // Per-monitor thresholds are extracted to companion plugins
+  // (dsh-flash-ctx-mon / dsh-flash-mem-mon), and the host alert queue's
+  // capacity/retention are now fixed constants — this namespace owns no
+  // alert settings.
 
   // ── E · Patch document editor (QuickControl "edit patch document") ─────
   // The editor's save-time validation lives in validatePatchText(); orphan
@@ -1335,10 +1327,10 @@ export function apply(ctx: Context, config: FlashConfig) {
   // only alerts (D) remain here.
 
 
-  // D · System alerts — no reconfigure needed. Alert routes read
-  // config.hostAlertQueueCap / hostAlertMaxAge via .get() at request time,
-  // and client-side alert providers read _alertPref() at poll time, so a
-  // volatile-update on these paths needs no host-side action.
+  // D · System alerts — no reconfigure needed. The alert routes read the fixed
+  // queue constants (DEFAULT_HOST_ALERT_QUEUE_CAP / DEFAULT_HOST_ALERT_MAX_AGE)
+  // directly, and the client-side alert providers read their own fixed
+  // constants at poll time, so no config is involved on either path.
 
 
   // ── HTTP API routes for client-side features ──────────────────────────
@@ -1350,7 +1342,7 @@ export function apply(ctx: Context, config: FlashConfig) {
     // Host-side alert queue for server-push alerts. External tools or the host
     // process itself can push alerts that the client will pick up on the next
     // poll. The queue is in-memory only (lost on restart), capped and pruned
-    // from settings the sliders control.
+    // by fixed constants.
     const _alertQueue: any[] = []
 
     wsCtx.effect(() => wsCtx.webServer.register({
@@ -1368,8 +1360,8 @@ export function apply(ctx: Context, config: FlashConfig) {
           sendJson(res, 400, { error: 'Missing required fields: id, title' })
           return
         }
-        const cap = config.hostAlertQueueCap.get() || DEFAULT_HOST_ALERT_QUEUE_CAP
-        const maxAgeHours = config.hostAlertMaxAge.get() ?? DEFAULT_HOST_ALERT_MAX_AGE
+        const cap = DEFAULT_HOST_ALERT_QUEUE_CAP
+        const maxAgeHours = DEFAULT_HOST_ALERT_MAX_AGE
         const maxAgeMs = (maxAgeHours > 0 ? maxAgeHours : DEFAULT_HOST_ALERT_MAX_AGE) * 3600_000
         const cutoff = Date.now() - maxAgeMs
         // Prune expired entries first, then cap the queue
@@ -1405,7 +1397,7 @@ export function apply(ctx: Context, config: FlashConfig) {
           res.end()
           return
         }
-        const maxAgeHours = config.hostAlertMaxAge.get() ?? DEFAULT_HOST_ALERT_MAX_AGE
+        const maxAgeHours = DEFAULT_HOST_ALERT_MAX_AGE
         const maxAgeMs = (maxAgeHours > 0 ? maxAgeHours : DEFAULT_HOST_ALERT_MAX_AGE) * 3600_000
         const cutoff = Date.now() - maxAgeMs
         // Prune expired entries before draining

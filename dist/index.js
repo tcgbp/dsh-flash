@@ -86,8 +86,6 @@ const MIGRATE_FIELDS = [
     { key: 'triggerLayer', isDefault: (v) => v == null || v === DEFAULT_TRIGGER_LAYER },
     { key: 'overlayOpacity', isDefault: (v) => v == null || v === DEFAULT_OVERLAY_OPACITY },
     { key: 'compactPanel', isDefault: (v) => v == null || v === false },
-    { key: 'hostAlertQueueCap', isDefault: (v) => v == null || v === DEFAULT_HOST_ALERT_QUEUE_CAP },
-    { key: 'hostAlertMaxAge', isDefault: (v) => v == null || v === DEFAULT_HOST_ALERT_MAX_AGE },
 ];
 /**
  * One-time, fail-open migration of persisted preferences from the legacy
@@ -222,12 +220,11 @@ export const Config = Schema.object({
     // controls themselves, nothing to read and nothing to reorder. A preference rather than a
     // per-session state because it is a way of working, and that button is its switch.
     compactPanel: Schema.boolean().default(false).volatile(),
-    // ── D · System alerts (merged with A per §7 decision) ────────────────
-    // Per-monitor thresholds extracted to companion plugins
-    // (dsh-flash-ctx-mon / dsh-flash-mem-mon); only the host alert queue
-    // settings remain in this namespace.
-    hostAlertQueueCap: Schema.number().default(DEFAULT_HOST_ALERT_QUEUE_CAP).volatile(),
-    hostAlertMaxAge: Schema.number().default(DEFAULT_HOST_ALERT_MAX_AGE).volatile(),
+    // ── D · System alerts ────────────────────────────────────────────────
+    // Per-monitor thresholds are extracted to companion plugins
+    // (dsh-flash-ctx-mon / dsh-flash-mem-mon), and the host alert queue's
+    // capacity/retention are now fixed constants — this namespace owns no
+    // alert settings.
     // ── E · Patch document editor (QuickControl "edit patch document") ─────
     // The editor's save-time validation lives in validatePatchText(); orphan
     // detection (a `name:` referencing a plugin not installed in this profile)
@@ -1183,10 +1180,10 @@ export function apply(ctx, config) {
     // subscribes to ITS OWN paths only, so a change in one never walks another's
     // code path — proxy (B) has been extracted to `dsh-flash-proxy`, so
     // only alerts (D) remain here.
-    // D · System alerts — no reconfigure needed. Alert routes read
-    // config.hostAlertQueueCap / hostAlertMaxAge via .get() at request time,
-    // and client-side alert providers read _alertPref() at poll time, so a
-    // volatile-update on these paths needs no host-side action.
+    // D · System alerts — no reconfigure needed. The alert routes read the fixed
+    // queue constants (DEFAULT_HOST_ALERT_QUEUE_CAP / DEFAULT_HOST_ALERT_MAX_AGE)
+    // directly, and the client-side alert providers read their own fixed
+    // constants at poll time, so no config is involved on either path.
     // ── HTTP API routes for client-side features ──────────────────────────
     // The webServer type augmentation lives in @deepseek-ai/dsh-host-webserver
     // which is not a direct dependency; cast through `any` for the register calls.
@@ -1195,7 +1192,7 @@ export function apply(ctx, config) {
         // Host-side alert queue for server-push alerts. External tools or the host
         // process itself can push alerts that the client will pick up on the next
         // poll. The queue is in-memory only (lost on restart), capped and pruned
-        // from settings the sliders control.
+        // by fixed constants.
         const _alertQueue = [];
         wsCtx.effect(() => wsCtx.webServer.register({
             kind: 'exact',
@@ -1212,8 +1209,8 @@ export function apply(ctx, config) {
                     sendJson(res, 400, { error: 'Missing required fields: id, title' });
                     return;
                 }
-                const cap = config.hostAlertQueueCap.get() || DEFAULT_HOST_ALERT_QUEUE_CAP;
-                const maxAgeHours = config.hostAlertMaxAge.get() ?? DEFAULT_HOST_ALERT_MAX_AGE;
+                const cap = DEFAULT_HOST_ALERT_QUEUE_CAP;
+                const maxAgeHours = DEFAULT_HOST_ALERT_MAX_AGE;
                 const maxAgeMs = (maxAgeHours > 0 ? maxAgeHours : DEFAULT_HOST_ALERT_MAX_AGE) * 3600_000;
                 const cutoff = Date.now() - maxAgeMs;
                 // Prune expired entries first, then cap the queue
@@ -1249,7 +1246,7 @@ export function apply(ctx, config) {
                     res.end();
                     return;
                 }
-                const maxAgeHours = config.hostAlertMaxAge.get() ?? DEFAULT_HOST_ALERT_MAX_AGE;
+                const maxAgeHours = DEFAULT_HOST_ALERT_MAX_AGE;
                 const maxAgeMs = (maxAgeHours > 0 ? maxAgeHours : DEFAULT_HOST_ALERT_MAX_AGE) * 3600_000;
                 const cutoff = Date.now() - maxAgeMs;
                 // Prune expired entries before draining
