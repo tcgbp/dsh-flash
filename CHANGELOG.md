@@ -8,6 +8,19 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.4.3
+
+**修复：告警 toast 右上角 ✕ 关闭按钮点击“不起作用”**（`lib/client.js`，纯客户端，无需重建 `dist/`）。
+
+现场探针（`dshFlashToastProbe` / `elementFromPoint`）证明 ✕ 并非被遮蔽也非逻辑损坏：它就是真实的最顶层按钮（`hitIsButton=true`），有实际绘制区域（15.4×14px，`display:block`），命中不受遮挡，`card.pointerEvents=auto`，事件处理器已挂载，且删除路径可用（自动消失与点击卡片看详情均正常走 `_removeToast`）。
+
+唯一被数据暴露出的缺陷是**交互命中区本身**：一个 15.4×14px 的微目标停在窗口最上沿。箭头光标下，偏离几个像素的点击会落到卡片/页面主体上，于是“点了没反应”——与症状吻合，而所有静态/运行时检查都报告按钮健康。
+
+修复：不移动受用户要求的顶部居中位置，也不触碰已验证的关闭/删除逻辑，只放大 ✕ 的可点击命中区——`padding: 6px 10px` 配合 `margin: -6px -8px` 拉回，把交互区扩大为约 31×26px 的目标（视觉 ✕ 仍停在卡片右上角）。
+
+用户实测确认：刷新后点击 ✕ 可正常关闭。
+
+
 ## 1.4.2
 
 **修复：`viewport.free` 自由位置的「只能竖向拖动 / x 不跟手」死区** (`lib/client.js`，纯客户端，无需重建 `dist/`)。
