@@ -207,6 +207,19 @@ export const Config = Schema.object({
         dx: Schema.number().default(DEFAULT_TRIGGER_OVERLAY_OFFSET.dx),
         dy: Schema.number().default(DEFAULT_TRIGGER_OVERLAY_OFFSET.dy),
     }).default(DEFAULT_TRIGGER_OVERLAY_OFFSET).volatile(),
+    // The viewport.free position is absolute-screen coordinates that only exist
+    // once the user drags the button. Deliberately volatile with NO object-level
+    // `.default()`: the client computes the live default (current window's
+    // top-right corner, 8px in) itself, and a static host default would be
+    // adopted on every fresh load, unseating that placement. Each number still
+    // carries a default so the nested-object resolve does not fail with
+    // `unsupported type "undefined"` (the 1.1.0 trap recorded above); an
+    // unwritten field resolves to undefined, which the client reads as "nothing
+    // stored" and falls through past.
+    triggerFreeOffset: Schema.object({
+        x: Schema.number().default(0),
+        y: Schema.number().default(0),
+    }).volatile(),
     // No min/max on purpose — see the field's comment: the range belongs to
     // the client, and it moves with the selected trigger position.
     triggerSize: Schema.number().default(DEFAULT_TRIGGER_SIZE).volatile(),

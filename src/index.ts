@@ -74,6 +74,17 @@ export interface FlashConfig {
    */
   triggerOverlayOffset: Volatile<TriggerOverlayOffset>
   /**
+   * Absolute screen position of the `viewport.free` trigger, written only when
+   * the user drags the button. Intentional ABSENCE (undefined) when nothing
+   * was ever saved: the client then falls through to its own computed default
+   * — the current window's top-right corner, 8px in — which no static host
+   * value could reproduce, because it depends on the window width. So this
+   * field is deliberately declared volatile WITHOUT a default: an unwritten
+   * namespace must not force a fixed coordinate that unseats the intended
+   * top-right placement on every fresh load.
+   */
+  triggerFreeOffset: Volatile<TriggerFreeOffset | undefined>
+  /**
    * Edge length of the standalone trigger button, in px.
    *
    * Client-owned, like the three preferences above: the host stores it and
@@ -119,6 +130,12 @@ export interface FlashConfig {
 export interface TriggerOverlayOffset {
   dx: number
   dy: number
+}
+
+/** Absolute screen position of the `viewport.free` trigger, as the client drags it. */
+export interface TriggerFreeOffset {
+  x: number
+  y: number
 }
 
 /** Ordered keys the client reorders groups and switches with. */
@@ -348,6 +365,19 @@ export const Config = Schema.object({
     dx: Schema.number().default(DEFAULT_TRIGGER_OVERLAY_OFFSET.dx),
     dy: Schema.number().default(DEFAULT_TRIGGER_OVERLAY_OFFSET.dy),
   }).default(DEFAULT_TRIGGER_OVERLAY_OFFSET).volatile(),
+  // The viewport.free position is absolute-screen coordinates that only exist
+  // once the user drags the button. Deliberately volatile with NO object-level
+  // `.default()`: the client computes the live default (current window's
+  // top-right corner, 8px in) itself, and a static host default would be
+  // adopted on every fresh load, unseating that placement. Each number still
+  // carries a default so the nested-object resolve does not fail with
+  // `unsupported type "undefined"` (the 1.1.0 trap recorded above); an
+  // unwritten field resolves to undefined, which the client reads as "nothing
+  // stored" and falls through past.
+  triggerFreeOffset: Schema.object({
+    x: Schema.number().default(0),
+    y: Schema.number().default(0),
+  }).volatile(),
   // No min/max on purpose — see the field's comment: the range belongs to
   // the client, and it moves with the selected trigger position.
   triggerSize: Schema.number().default(DEFAULT_TRIGGER_SIZE).volatile(),
