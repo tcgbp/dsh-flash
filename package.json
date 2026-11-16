@@ -21,7 +21,8 @@
     "cordis.patch.yml",
     "icon.svg",
     "locale",
-    "README.md"
+    "README.md",
+    "README.zh-CN.md"
   ],
   "repository": {
     "type": "git",
