@@ -8,6 +8,16 @@ git log remains the authoritative record of individual commits — the entries
 below summarise releases. Recent entries are the most detailed on purpose:
 several of them record defects whose reasoning is still load-bearing.
 
+## 1.4.4
+
+**修复：快捷面板告警数量不再限制，头部 ⚡ 徽章精确显示告警数**（`lib/client.js`，纯客户端，无需重建 `dist/`）。
+
+1. **移除告警数量上限**：`createAlertRegistry` 中原本的 `MAX_ALERTS = 3` 及其「丢弃最旧告警」的 while-loop 让告警在超过 3 条时被静默丢弃。现在告警持续保留，除非被显式关闭或 provider 移除；面板头部/告警下拉都会**显示全部**活跃告警，不再有数量限制（`043efdb`，`6c1d994`）。
+
+2. **头部 ⚡ 徽章精确计数**：触发按钮徽章此前会对数量做 `99+` 收敛，现改为精确显示当前活跃告警数（`6c1d994`）。
+
+用户实测确认：刷新后徽章显示精确数字，多个告警全部列出。
+
 ## 1.4.3
 
 **修复：告警 toast 右上角 ✕ 关闭按钮点击“不起作用”**（`lib/client.js`，纯客户端，无需重建 `dist/`）。
