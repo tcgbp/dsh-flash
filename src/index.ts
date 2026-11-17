@@ -523,6 +523,16 @@ export function apply(ctx: Context, config: FlashConfig) {
   }
 
   /**
+   * True for host-log lines that carry no diagnostic value and are deliberately
+   * dropped from the panel buffer. DSH's own patch composer (`applyEntryPatches`)
+   * warns `patch: entry "<id>" not found` whenever a patch row names an entry the
+   * profile's inventory does not manage — which happens for legitimate, optional
+   * ids such as a plugin-provided `ide-git`. That warn is noise on every boot, so
+   * this catches the rendered line and keeps it out of the surface.
+   */
+  const _PATCH_ENTRY_NOT_FOUND = /^patch: entry\s+["']?[^"'\n]*["']?\s+not\s+found\b/
+
+  /**
    * Append one rendered line to the in-memory host-log buffer. Pure capture —
    * the real console/`ctx.logger` emit stays exactly where it is (or, for the
    * exporter path, already happened), so this only adds a surface, never
@@ -532,7 +542,9 @@ export function apply(ctx: Context, config: FlashConfig) {
   function _captureHostLog(
     level: 'error' | 'warn' | 'info' | 'debug', text: string, name = 'dsh-flash',
   ): void {
-    hostLogs.push({ ts: Date.now(), level, name, text: _foldNewlines(text) })
+    const folded = _foldNewlines(text)
+    if (_PATCH_ENTRY_NOT_FOUND.test(folded)) return
+    hostLogs.push({ ts: Date.now(), level, name, text: folded })
     if (hostLogs.length > HOST_LOG_CAP) hostLogs.splice(0, hostLogs.length - HOST_LOG_CAP)
   }
 
