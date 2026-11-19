@@ -820,7 +820,7 @@ console.log('\n=== 6. clicking the button toggles the panel ===')
 // the render has something the normal view must filter and the editing modes must
 // still list. This is the contract in one switch: a registered control is never
 // unreachable-in-all-modes, however its `visible()` answers.
-const STOOD_DOWN_ID = 'dock-flash:harness-stood-down'
+const STOOD_DOWN_ID = 'dsh-flash:harness-stood-down'
 const STOOD_DOWN_GROUP = 'harness-only'
 registry.registerSwitch({
   id: STOOD_DOWN_ID,
@@ -932,7 +932,7 @@ console.log('\n=== 10. the trigger-size switch resizes the button ===')
 // back until now — the overlay intentionally does not need `slots`, so the
 // registration is proven to arrive LATE, exactly as it does in a real browser
 // where the renderer service settles after bootstrap.
-check('the size control is registered only once `slots` arrives', !registry.getSwitches().some((s) => s.id === 'dock-flash:trigger-size'))
+check('the size control is registered only once `slots` arrives', !registry.getSwitches().some((s) => s.id === 'dsh-flash:trigger-size'))
 // `register` KEEPS the component it is handed: the slot trigger is a React
 // component whose size is computed during render, and the only way to assert that
 // it repaints is to render it here and count the renders.
@@ -944,13 +944,13 @@ slotsCallback({
     register: (_meta, Component) => { slotTriggerComponent = Component; return () => {} },
   },
 })
-const sizeSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:trigger-size')
+const sizeSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:trigger-size')
 check('the trigger-size switch is registered', !!sizeSwitch)
 // The close-on-blur row and the header button draw the SAME glyph. They did not: the row asked for
 // the generic `eye` while the button drew a panel with a pointer leaving it, so one setting wore two
 // faces. Here the row half is behavioural (its registered icon name); section 27 pins the button's
 // real DOM against the same declaration.
-const cobSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:close-on-blur')
+const cobSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:close-on-blur')
 check('the close-on-blur row asks for the SHARED glyph, not the generic eye',
   !!cobSwitch && cobSwitch.icon === 'close-on-blur',
   cobSwitch ? String(cobSwitch.icon) : 'switch not registered')
@@ -1118,10 +1118,10 @@ console.log('\n=== 11. a host-stored size reaches the button ===')
 
   // The slot path must clamp the SAME stored value down to the row's ceiling.
   if (injectCb2) injectCb2({ slots: { inject: () => () => {}, register: () => () => {} } })
-  const sizeSwitch2 = provided2.quickControl.getSwitches().find((s) => s.id === 'dock-flash:trigger-size')
+  const sizeSwitch2 = provided2.quickControl.getSwitches().find((s) => s.id === 'dsh-flash:trigger-size')
   check('a host-stored 48 is still legal at the overlay position', !!sizeSwitch2 && sizeSwitch2.getValue() === 48,
     sizeSwitch2 && String(sizeSwitch2.getValue()))
-  const posSwitch2 = provided2.quickControl.getSwitches().find((s) => s.id === 'dock-flash:trigger-position')
+  const posSwitch2 = provided2.quickControl.getSwitches().find((s) => s.id === 'dsh-flash:trigger-position')
   posSwitch2.setValue('input.right')
   check('switching to a slot position clamps the DISPLAY to 48 — the row still fits',
     sizeSwitch2.getValue() === 48, String(sizeSwitch2.getValue()))
@@ -1601,7 +1601,7 @@ console.log('\n=== 14. the SLOT trigger resizes when the slider moves ===')
   // position the rest of this file works in. So the harness reaches the slot path
   // by SELECTING a slot position first, exactly as a user would, and that is also
   // what makes this section cover the four positions the overlay fix missed.
-  const posSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:trigger-position')
+  const posSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:trigger-position')
   posSwitch.setValue('input.right')
   check('the slots registration handed the harness a component',
     typeof slotTriggerComponent === 'function', typeof slotTriggerComponent)
@@ -1649,7 +1649,7 @@ console.log('\n=== 14. the SLOT trigger resizes when the slider moves ===')
   // build where the subscription is removed.
   renderRequested = false
   const rendersBefore = slotTriggerRenders
-  registry.notifyChange('dock-flash:trigger-size')
+  registry.notifyChange('dsh-flash:trigger-size')
   check('moving the slider asks the SLOT button to re-render (its subscription fired)',
     renderRequested === true, `renderRequested=${renderRequested}`)
   check('...and no hand-render was needed to make that happen',
@@ -1719,14 +1719,14 @@ console.log('\n=== 15. the skin list excludes the market plugin ===')
   for (const id of candidates) head.appendChild(mkStyleTag(id))
 
   // The market answer drives registration and is a microtask chain; give it a
-  // turn so `dock-flash:skin` exists by the time the options are read.
+  // turn so `dsh-flash:skin` exists by the time the options are read.
   await new Promise((r) => setTimeout(r, 20))
 
   // The switch's options are a function, so nothing is scanned until it is called
   // — which is exactly when the user opens the dropdown.
-  const skinSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:skin')
+  const skinSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:skin')
   if (!skinSwitch) {
-    check('the skin switch is registered (needs a market answer)', false, 'no dock-flash:skin switch')
+    check('the skin switch is registered (needs a market answer)', false, 'no dsh-flash:skin switch')
   } else {
     const opts = typeof skinSwitch.options === 'function' ? skinSwitch.options() : skinSwitch.options
     const values = opts.map((o) => o.value)
@@ -1764,8 +1764,8 @@ console.log('\n=== 15. the skin list excludes the market plugin ===')
 // signal still must.
 console.log('\n=== 15b. a managed skin needs a real install signal ===')
 {
-  const skinSwitchB = registry.getSwitches().find((s) => s.id === 'dock-flash:skin')
-  check('the skin switch exists for this section', !!skinSwitchB, 'no dock-flash:skin switch')
+  const skinSwitchB = registry.getSwitches().find((s) => s.id === 'dsh-flash:skin')
+  check('the skin switch exists for this section', !!skinSwitchB, 'no dsh-flash:skin switch')
 
   // PART 1 — the write guard. At this point nothing has installed Mineradio:
   // the harness declares no `__DSH_BOOT__` and no module graph, and section 15's
@@ -1814,7 +1814,7 @@ console.log('\n=== 15b. a managed skin needs a real install signal ===')
 // and, before the fix above, wedged the dropdown on a theme that never activated.
 console.log('\n=== 16. the skin list follows the market classification ===')
 {
-  const skinSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:skin')
+  const skinSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:skin')
   const readOptions = () => {
     const opts = typeof skinSwitch.options === 'function' ? skinSwitch.options() : skinSwitch.options
     return {
@@ -1917,7 +1917,7 @@ console.log('\n=== 16. the skin list follows the market classification ===')
     if (cb4) cb4({ slots: { inject: () => () => {}, register: () => () => {} } })
     await new Promise((r) => setTimeout(r, 30))
 
-    const sw4 = provided4.quickControl.getSwitches().find((s) => s.id === 'dock-flash:skin')
+    const sw4 = provided4.quickControl.getSwitches().find((s) => s.id === 'dsh-flash:skin')
     const vals4 = (typeof sw4.options === 'function' ? sw4.options() : sw4.options).map((o) => o.value)
     await new Promise((r) => setTimeout(r, 20))
     const vals4b = (typeof sw4.options === 'function' ? sw4.options() : sw4.options).map((o) => o.value)
@@ -1932,7 +1932,7 @@ console.log('\n=== 16. the skin list follows the market classification ===')
 // cleared on failure and `_getActiveSkinId()` echoes it back.
 console.log('\n=== 17. a refused market activation releases the selection ===')
 {
-  const skinSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:skin')
+  const skinSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:skin')
   const before = skinSwitch.getValue()
 
   // A theme the market REFUSES to activate (the stub answers 400 for every name).
@@ -1956,7 +1956,7 @@ console.log('\n=== 17. a refused market activation releases the selection ===')
 // rule that a finished drag releases hover brightness.
 console.log('\n=== 18. the overlay context menu ===')
 {
-  const posSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:trigger-position')
+  const posSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:trigger-position')
   posSwitch.setValue('conversation.overlay')
   await new Promise((r) => setTimeout(r, 20))
 
@@ -2104,7 +2104,7 @@ console.log('\n=== 18. the overlay context menu ===')
 // literal: the stub authors `13px`, which equals no fallback in the bundle.
 console.log('\n=== 19. the rail mirror follows DSH\'s own offset ===')
 {
-  const railSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:turn-rail-left')
+  const railSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:turn-rail-left')
   check('the turn-rail-left switch is registered', !!railSwitch, 'not found')
   if (railSwitch) {
     const tagOf = () => head.descendants().find((e) => e.id === 'dsh-flash-turn-rail')
@@ -2188,7 +2188,7 @@ console.log('\n=== 20. 默认 switches a handle-less skin as a PLUGIN, never thr
   // stay empty": the plugin manager's own bundle switch is the second half of a
   // correct skin switch, and the assertion that used to forbid it was pinning the
   // very bug this section exists for. See the roster check further down.
-  const skinSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:skin')
+  const skinSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:skin')
   check('the skin switch is registered once the market answers', !!skinSwitch, 'not found')
 
   if (skinSwitch) {
@@ -2372,7 +2372,7 @@ console.log('\n=== 20. 默认 switches a handle-less skin as a PLUGIN, never thr
 // branch. That is why the filter needs a stub to be tested at all.
 console.log('\n=== 20b. 外观 offers what the service publishes, minus the dead options ===')
 {
-  const themeSwitch = registry.getSwitches().find((s) => s.id === 'dock-flash:theme')
+  const themeSwitch = registry.getSwitches().find((s) => s.id === 'dsh-flash:theme')
   check('the theme switch is registered', !!themeSwitch, 'not found')
   if (themeSwitch) {
     const savedTheme = provided.theme
@@ -2591,7 +2591,7 @@ console.log('\n=== 21. a handle-less skin VISIBLY in effect (the state 默认 co
   await new Promise((r) => setTimeout(r, 30))
 
   const sw5 = provided5.quickControl &&
-    provided5.quickControl.getSwitches().find((s) => s.id === 'dock-flash:skin')
+    provided5.quickControl.getSwitches().find((s) => s.id === 'dsh-flash:skin')
   check('a fresh bundle registers the skin switch against the market', !!sw5, 'not found')
 
   if (sw5) {
@@ -2759,7 +2759,7 @@ console.log('\n=== 22. activating a handle-less skin IN-PAGE still reloads ===')
   await new Promise((r) => setTimeout(r, 30))
 
   const sw6 = provided6.quickControl &&
-    provided6.quickControl.getSwitches().find((s) => s.id === 'dock-flash:skin')
+    provided6.quickControl.getSwitches().find((s) => s.id === 'dsh-flash:skin')
   const offered6 = sw6 ? sw6.options().map((o) => o.value) : []
   check('a handle-less skin stays selectable even when the market no longer lists it',
     offered6.includes('dsh-dream-skin'), JSON.stringify(offered6))
@@ -3069,8 +3069,8 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
     plugin.apply(ctx)
     await new Promise((r) => setTimeout(r, 40))
     const reg = provided.quickControl
-    const sw = reg && reg.getSwitches().find((s) => s.id === 'dock-flash:companions-missing')
-    const copy = reg && reg.getSwitches().find((s) => s.id === 'dock-flash:companions-copy')
+    const sw = reg && reg.getSwitches().find((s) => s.id === 'dsh-flash:companions-missing')
+    const copy = reg && reg.getSwitches().find((s) => s.id === 'dsh-flash:companions-copy')
     return { reg, sw, copy, updates, provided,
       lines: sw ? (sw.getLines() || []).join('\n') : null, meta: sw ? sw.getMeta() : null }
   }
@@ -3197,7 +3197,7 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
       .filter((p) => p && p.panelOrder && p.panelOrder.hidden).pop()
     const hidden = (written && written.panelOrder.hidden['builtin:system']) || []
     check("dismissing writes the HIDDEN set (the visibility mode's own store), namespaced to the group",
-      hidden.includes('dock-flash:companions-missing') && hidden.includes('dock-flash:companions-copy'),
+      hidden.includes('dsh-flash:companions-missing') && hidden.includes('dsh-flash:companions-copy'),
       JSON.stringify(hidden))
     check('...and it writes ONLY the hidden set — no new preference, nothing removed',
       t.updates.every((args) => args[0] === 'dsh-flash' && args.length === 3)
@@ -3205,10 +3205,10 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
       JSON.stringify(t.updates.map((a) => Object.keys(a[1] || {}))))
     check('...and BOTH switches are still registered afterwards (hidden, not deleted)',
       t.reg.getSwitches().length === before
-        && ids.includes('dock-flash:companions-missing') && ids.includes('dock-flash:companions-copy'),
+        && ids.includes('dsh-flash:companions-missing') && ids.includes('dsh-flash:companions-copy'),
       'registered before=' + before + ' after=' + t.reg.getSwitches().length)
     check('...so it stays restorable from the visibility page, and reachable by the reorder mode too',
-      typeof t.reg.getSwitches().find((s) => s.id === 'dock-flash:companions-copy').visible === 'function',
+      typeof t.reg.getSwitches().find((s) => s.id === 'dsh-flash:companions-copy').visible === 'function',
       'the copy action still carries its own visible()')
   }
 
@@ -3237,7 +3237,7 @@ console.log('\n=== 24. the missing-companion hint: four states, and never a fals
   }
   {
     const t = await setup(okProfile(WEB, ['dock-base']))
-    const lease = t.provided.dockFlashPanel.host.claim()
+    const lease = t.provided.dshFlashPanel.host.claim()
     lease.confirm()
     const lines = t.sw && t.sw.getLines().join('\n')
     check('once the adapter claims the panel it disappears from the list (running = claimed)',
@@ -3484,7 +3484,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
    *  afterwards: this is a probe, and it must not disturb the render bookkeeping other sections
    *  read. */
   function renderPanelElement (t, standalone) {
-    const svc = t.provided && t.provided.dockFlashPanel
+    const svc = t.provided && t.provided.dshFlashPanel
     if (!svc || typeof svc.Panel !== 'function') return null
     const savedCells = hookCells.splice(0, hookCells.length)
     const savedFx = pendingEffects.splice(0, pendingEffects.length)
@@ -3636,7 +3636,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
         let found = 0
         if (tree) walkEl(tree, (el) => {
           if (el.props && (el.props['data-switch-id'] === 'harness:missing-yardstick'
-            || el.props['data-switch-id'] === 'dock-flash:companions-missing')) found += 1
+            || el.props['data-switch-id'] === 'dsh-flash:companions-missing')) found += 1
         })
         return found
       }
@@ -3793,7 +3793,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       !!snap && snap.compact.pairedToggleRows.every((row) => row.length === 2),
       JSON.stringify(snap && snap.compact.pairedToggleRows))
     check('...and the language row is drawn without its glyph (its control already says it)',
-      !!snap && snap.compact.iconless.includes('dock-flash:language'),
+      !!snap && snap.compact.iconless.includes('dsh-flash:language'),
       JSON.stringify(snap && snap.compact.iconless))
     check('...and no other row loses its icon',
       !!snap && snap.compact.iconless.length === 1, JSON.stringify(snap && snap.compact.iconless))
@@ -3806,7 +3806,7 @@ console.log('\n=== 27. the compact panel: a preference, its button, and the clus
       const langTree = renderPanelElement(t)
       const langRows = []
       if (langTree) walkEl(langTree, (el) => {
-        if (el.props && el.props['data-switch-id'] === 'dock-flash:language') langRows.push(el)
+        if (el.props && el.props['data-switch-id'] === 'dsh-flash:language') langRows.push(el)
       })
       const langRow = langRows[langRows.length - 1]
       const langStyle = (langRow && langRow.props && langRow.props.style) || {}
@@ -4264,7 +4264,7 @@ console.log('\n=== 28. the ownership handshake: the core offers the ⚡ and stan
   provided.quickControl.notifyChange = origNotify
   check('...and its toggle writes through the CORE registry (the wart this split fixed)',
     cobOn(cobMid) !== cobOn(cobBefore) && cobOn(cobAfter) === cobOn(cobBefore)
-      && notified.length === 2 && notified.every((n) => n === 'dock-flash:close-on-blur'),
+      && notified.length === 2 && notified.every((n) => n === 'dsh-flash:close-on-blur'),
     'stored=' + String(cobBefore) + '→' + String(cobMid) + '→' + String(cobAfter)
       + ' notified=' + notified.join(','))
 
@@ -4457,11 +4457,11 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
     't(title)=' + t('title') + ' locale=' + t.getLocale())
   check('...and the switch row reports the same value through the same single read',
     (() => {
-      const row = a.provided.quickControl.getSwitches().find((s) => s.id === 'dock-flash:language')
+      const row = a.provided.quickControl.getSwitches().find((s) => s.id === 'dsh-flash:language')
       return !!row && row.getValue() === 'zh'
     })(),
     'language row getValue()=' + (() => {
-      const row = a.provided.quickControl.getSwitches().find((s) => s.id === 'dock-flash:language')
+      const row = a.provided.quickControl.getSwitches().find((s) => s.id === 'dsh-flash:language')
       return row ? String(row.getValue()) : 'row not registered'
     })())
 
@@ -4481,7 +4481,7 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
   // The row used to write the service AND a private copy. It now delegates, so the
   // service is the only thing that moves and the panel learns about it by being
   // told — not because the writer also poked it.
-  const row = a.provided.quickControl.getSwitches().find((s) => s.id === 'dock-flash:language')
+  const row = a.provided.quickControl.getSwitches().find((s) => s.id === 'dsh-flash:language')
   const versionBefore = a.provided.quickControl.version
   row.setValue('en')
   check('setValue switches the service and touches nothing else',
@@ -4508,7 +4508,7 @@ console.log('\n=== 29. i18n through DSH\'s `locale` service: register, read, swi
     't(title)=' + tFallback('title'))
   check('...and the row still works, because a fallback is not a read-only UI',
     (() => {
-      const r = b.provided.quickControl.getSwitches().find((s) => s.id === 'dock-flash:language')
+      const r = b.provided.quickControl.getSwitches().find((s) => s.id === 'dsh-flash:language')
       r.setValue('zh')
       return tFallback('title') === '快捷控制' && r.getValue() === 'zh'
     })(),
