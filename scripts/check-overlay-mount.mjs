@@ -4625,6 +4625,27 @@ console.log('\n=== 30. detach/re-attach: exactly one container, and the gestures
   check('...and three further cycles still leave exactly one container, not one per cycle',
     panels().length === 1, 'containers=' + panels().length)
 
+  // Mode mutual exclusion: while a dock host CLAIMS the panel the standalone ⚡
+  // stands down, and the three Layout switches that restyle it (trigger-position,
+  // trigger-size, close-on-blur) must not surface inside the workbench panel's
+  // NORMAL view. `visible` drops the ROW while the switch stays registered — that
+  // is both what hides each row and what lets claim/release (which remount this
+  // closure) re-evaluate the gate afresh, so the two modes can never coexist.
+  const layoutGate = () => ['dsh-flash:trigger-position', 'dsh-flash:trigger-size', 'dsh-flash:close-on-blur']
+    .map((id) => registry.getSwitches().find((s) => s.id === id))
+    .filter(Boolean)
+    .map((s) => typeof s.visible === 'function' ? !!s.visible() : true)
+  hostSvc.claim()
+  const claimedGate = layoutGate()
+  hostSvc.release()
+  const releasedGate = layoutGate()
+  check('while a host CLAIMS the panel every Layout switch is hidden from a workbench view (mutual exclusion)',
+    claimedGate.length === 3 && claimedGate.every((v) => v === false),
+    'claimed=' + JSON.stringify(claimedGate))
+  check('...and release brings every Layout switch back (the two modes are mutually exclusive)',
+    releasedGate.length === 3 && releasedGate.every((v) => v === true),
+    'released=' + JSON.stringify(releasedGate))
+
   // Leave the page as section 6 left it: no panel on screen.
   sandbox.document.__fire('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} })
 
